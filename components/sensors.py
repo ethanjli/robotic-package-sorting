@@ -1,7 +1,9 @@
 """Support for continuous monitoring of sensor data."""
-from reactors import Signal, InterruptableThread, Signaler
 import time
 from threading import Semaphore
+
+from messaging import Signal, Broadcaster
+from concurrency import InterruptableThread
 
 # The types of Signals the Monitor can send to registered Reactors.
 SIGNAL_NAMES = (
@@ -12,7 +14,7 @@ SIGNAL_NAMES = (
 
 PSD_PORT = 0
 
-class Monitor(InterruptableThread, Signaler):
+class Monitor(InterruptableThread, Broadcaster):
     """Monitors sensor values and broadcasts them to registered Reactors.
     Sleeps when no Reactors are currently registered."""
     def __init__(self, name, robot, warmup_time=1.0, update_interval=0.1):
@@ -22,7 +24,7 @@ class Monitor(InterruptableThread, Signaler):
         self._update_interval = update_interval
         self._num_listeners = Semaphore(0) # tracks the number of registered Reactors
 
-    # Extending parent functions in Signaler
+    # Extending parent functions in Broadcaster
     def register_reactor(self, signal_name, reactor):
         """Registers a Reactor to listen for all signals of the specified name."""
         super(Monitor, self).register_reactor(signal_name, reactor)

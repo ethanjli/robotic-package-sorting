@@ -1,7 +1,8 @@
 """Simple Reactors that act on received Signals without sending Signals.
 These classes usually send commands to a robot specified at instantiation."""
-from reactors import Reactor
 import time
+
+from concurrency import Reactor
 
 SERVO_PORT = 1
 
