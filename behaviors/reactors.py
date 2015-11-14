@@ -10,6 +10,7 @@ Signal = namedtuple("Signal", ["Name", "Data"])
 class InterruptableThread(object):
     """Interface class to support easier threading."""
     def __init__(self, name):
+        super(InterruptableThread, self).__init__()
         self._name = name
         self._quit_flag = threading.Event()
         self._thread = threading.Thread(target=self._run, name=name)
@@ -82,4 +83,58 @@ class Reactor(InterruptableThread):
     def _run_post(self):
         """Executes after the thread ends. Useful for initialization."""
         pass
+
+class Signaler(object):
+    """Provides mixin functionality to broadcast Signals to groups of Reactors.
+    Reactors can be registered to listen to Signals (based on Signal name)
+    that the Signaler emits.
+    """
+    def __init__(self):
+        super(Signaler, self).__init__()
+        self._reactors = {}
+
+    def register_reactor(self, signal_name, reactor):
+        """Registers a Reactor to listen for all signals of the specified name.
+
+        Arguments:
+            signal_name: the name of the type of Signal to listen to.
+            reactor: a Reactor.
+        """
+        if signal_name not in self._reactors:
+            self._reactors[signal_name] = {}
+        self._reactors[signal_name].add(reactor)
+
+    def deregister_reactor(self, signal_name, reactor):
+        """Removes a Reactor that previously listened for signals.
+
+        Arguments:
+            signal_name: the name of the type of Signal to listen to.
+            reactor: a Reactor that was previously registered to listen to signals
+            of type signal_name.
+
+        Exceptions:
+            ValueError: no Reactor has ever been registered to listen to signals of
+            type signal_name.
+            ValueError: the provided Reactor is not currently registered to listen to
+            signals of type signal_name.
+        """
+        if signal_name not in self._reactors:
+            raise ValueError("No Reactor has ever been registered to listen to "
+                             "\"{}\" signals".format(signal_name))
+        if reactor not in self._reactors[signal_name]:
+            raise ValueError("Reactor \"{}\" is not currently registered to listen "
+                             "to \"{}\" signals".format(reactor.get_name(), signal_name))
+        self._reactors[signal_name].remove(reactor)
+
+    def broadcast(self, signal):
+        """Broadcasts a signal to all Reactors registered with the specified Signal's name.
+        If no Reactor is registered with the specified Signal's name, does nothing.
+
+        Arguments:
+            signal: the signal to broadcast.
+        """
+        if signal.Name not in self._reactors:
+            return
+        for reactor in self._reactors[signal.Name]:
+            reactor.send(signal)
 

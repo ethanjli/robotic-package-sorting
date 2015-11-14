@@ -3,6 +3,8 @@ These classes usually send commands to a robot specified at instantiation."""
 from reactors import Reactor
 import time
 
+SERVO_PORT = 1
+
 class Echoer(Reactor):
     """Echoes any received Signals to stdout. Useful for debugging."""
     def __init__(self, name):
@@ -73,15 +75,14 @@ class ScannerRotator(Reactor):
         Will react to any Signal it receives, regardless of name. Data should be a
         positive int of the angle.
     """
-    def __init__(self, name, robot, io_port=1):
+    def __init__(self, name, robot):
         super(ScannerRotator, self).__init__(name, [])
         self._robot = robot
-        self._port = io_port
 
     def _react(self, signal):
-        self._robot.set_port(self._port, signal.Data)
+        self._robot.set_port(SERVO_PORT, signal.Data)
     def _run_pre(self):
-        self._robot.set_io_mode(self._port, 0x08)
-        self._robot.set_port(self._port, 90)
+        self._robot.set_io_mode(SERVO_PORT, 0x08)
+        self._robot.set_port(SERVO_PORT, 90)
     def _run_post(self):
-        self._robot.set_port(self._port, 90)
+        self._robot.set_port(SERVO_PORT, 90)
