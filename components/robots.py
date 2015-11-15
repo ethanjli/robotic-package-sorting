@@ -8,6 +8,8 @@ from components.messaging import Broadcaster
 from components.concurrency import GUIReactor
 from hamster.comm_usb import RobotComm
 
+MIN_RSSI = -50
+
 def _ordinal(n):
     # Algorithm from Gareth's solution at:
     # http://codegolf.stackexchange.com/questions/4707/outputting-ordinal-numbers-1st-2nd-3rd
@@ -18,7 +20,7 @@ class RobotApp(GUIReactor, Broadcaster):
     """Shows a simple window with a hello world message and a quit button."""
     def __init__(self, num_robots=1):
         super(RobotApp, self).__init__()
-        self.__comm = RobotComm(num_robots, -50)
+        self.__comm = None
         self.__num_robots = num_robots
         self._robots = []
         self._threads = {}
@@ -28,6 +30,8 @@ class RobotApp(GUIReactor, Broadcaster):
     def _run_post(self):
         for _, thread in self._threads.items():
             thread.quit()
+        if self.__comm is None:
+            return
         for robot in self.__comm.robotList:
             robot.reset()
         time.sleep(1.0)
@@ -60,16 +64,24 @@ class RobotApp(GUIReactor, Broadcaster):
         self.__parent_frame.nametowidget("connect").config(text="Connected")
         self._connect_post()
     def __connect_next(self):
-        while len(self.__comm.robotList) <= len(self._robots):
+        while self.__comm is None or len(self.__comm.robotList) <= len(self._robots):
             message = "Please connect the {} robot".format(_ordinal(len(self._robots) + 1))
             if not tkMessageBox.askokcancel("Robot Connection Manager", message):
                 return False
-            if len(self._robots) == 0 and not self.__comm.start():
-                tkMessageBox.showerror("Robot Connection Manager",
-                                       "Cannot start the robot connection manager.")
+            while self.__comm is None:
+                if not self.__start_comm():
+                    return False
+        self._robots.append(self.__comm.robotList[len(self._robots)])
+        return True
+    def __start_comm(self):
+        self.__comm = RobotComm(self.__num_robots, MIN_RSSI)
+        if not self.__comm.start():
+            self.__comm = None
+            if not tkMessageBox.askretrycancel("Robot Connection Manager",
+                                               "Cannot start the robot connection "
+                                               "manager. Please try again."):
                 self.quit()
                 return False
-        self._robots.append(self.__comm.robotList[len(self._robots)])
         return True
 
     # Abstract methods
