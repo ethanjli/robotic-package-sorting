@@ -28,13 +28,15 @@ class GUISensors(RobotApp):
             self.__sensors_frame.nametowidget("psdLabel").config(text="PSD: {}"
                                                                 .format(signal.Data))
     def _initialize_widgets(self):
-        app_frame = tk.Frame(self._root, name="appFrame",
-                             borderwidth=2, relief=tk.RIDGE)
+        app_frame = tk.LabelFrame(self._root, name="appFrame",
+                                  borderwidth=2, relief=tk.RIDGE,
+                                  text="App")
         app_frame.pack(fill=tk.X)
         self._initialize_robotapp_widgets(app_frame)
 
-        self.__sensors_frame = tk.Frame(self._root, name="sensorsFrame",
-                                       borderwidth=2, relief=tk.RIDGE)
+        self.__sensors_frame = tk.LabelFrame(self._root, name="sensorsFrame",
+                                             borderwidth=2, relief=tk.RIDGE,
+                                             text="Sensors")
         self.__sensors_frame.pack(fill=tk.X)
         tk.Label(self.__sensors_frame, name="floorLabel",
                  text="Floor: (?, ?)").pack(fill=tk.X)
@@ -45,11 +47,12 @@ class GUISensors(RobotApp):
         tk.Button(self.__sensors_frame, name="monitorButton", text="Monitor",
                   command=self._toggle_monitor, state=tk.DISABLED).pack(fill=tk.X)
 
-        self.__effectors_frame = tk.Frame(self._root, name="effectorsFrame",
-                                         borderwidth=2, relief=tk.RIDGE)
+        self.__effectors_frame = tk.LabelFrame(self._root, name="effectorsFrame",
+                                               borderwidth=2, relief=tk.RIDGE,
+                                               text="Effectors")
         self.__effectors_frame.pack(fill=tk.X)
-        tk.Button(self.__effectors_frame, name="beepButton",
-                  text="Beep", command=self._beep, state=tk.DISABLED).pack(fill=tk.X)
+        tk.Button(self.__effectors_frame, name="beepButton", text="Beep",
+                  command=self._beep, state=tk.DISABLED).pack(fill=tk.X)
     def _initialize_threads(self):
         sensor_monitor = Monitor("Sensors Monitor", self._robots[0])
         self._threads["Sensors Monitor"] = sensor_monitor

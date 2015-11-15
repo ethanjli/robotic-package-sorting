@@ -42,11 +42,10 @@ class RobotApp(GUIReactor, Broadcaster):
             quit: a button to exit the application.
         """
         self.__parent_frame = parent
-        tk.Label(parent, name="name", text="Robots").pack()
         tk.Button(parent, name="connect", text="Connect",
-                  command=self.__connect_all).pack(fill=tk.X)
+                  command=self.__connect_all).pack(side=tk.LEFT, fill=tk.Y)
         tk.Button(parent, name="quit", text="Quit",
-                  command=self.quit).pack(fill=tk.X)
+                  command=self.quit).pack(side=tk.LEFT, fill=tk.Y)
 
     # Connect button callback
     def __connect_all(self):
