@@ -11,24 +11,24 @@ class InterruptableThread(object):
     """Interface class to support easier threading."""
     def __init__(self, name):
         super(InterruptableThread, self).__init__()
-        self._name = name
+        self.__name = name
         self._quit_flag = threading.Event()
-        self._thread = threading.Thread(target=self._run, name=name)
+        self.__thread = threading.Thread(target=self._run, name=name)
 
     def get_name(self):
         """Returns the name of the thread instance as specified during instantiation."""
-        return self._name
+        return self.__name
 
     # Threading
     def start(self):
         """Starts the thread."""
-        self._thread.start()
+        self.__thread.start()
     def quit(self):
         """Quits and joins with the thread, if it's running."""
         self._quit_flag.set()
         self._wake()
-        if self._thread.is_alive():
-            self._thread.join()
+        if self.__thread.is_alive():
+            self.__thread.join()
 
     # Abstract methods
     def _wake(self):
@@ -79,13 +79,13 @@ class GUIReactor(Receiver):
     """
     def __init__(self, name="GUI", update_interval=10):
         super(GUIReactor, self).__init__()
-        self._name = name
+        self.__name = name
         self._root = tk.Tk()
-        self._update_interval = update_interval
+        self.__update_interval = update_interval
 
     def get_name(self):
         """Returns the name of the thread instance as specified during instantiation."""
-        return self._name
+        return self.__name
 
     # Event loop
     def start(self):
@@ -96,6 +96,7 @@ class GUIReactor(Receiver):
         self._root.mainloop()
     def quit(self):
         """Quits the GUI and unblocks the thread that called the start method."""
+        self._root.destroy()
         self._root.quit()
         self._run_post()
     def _run(self):
@@ -105,7 +106,7 @@ class GUIReactor(Receiver):
             except queue.Empty:
                 continue
             self._queue.task_done()
-        self._root.after(self._update_interval, self._run)
+        self._root.after(self.__update_interval, self._run)
 
     # Abstract methods
     def _react(self, signal):
