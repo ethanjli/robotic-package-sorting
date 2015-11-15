@@ -67,6 +67,12 @@ class Broadcaster(object):
     def is_registered(self, signal_name, reactor):
         """Checks whether a Reactor is currently listening for signals."""
         return signal_name in self._reactors and reactor in self._reactors[signal_name]
+    def toggle_registered(self, signal_name, reactor):
+        """Toggles whether a Reactor is currently listening for signals."""
+        if self.is_registered(signal_name, reactor):
+            self.deregister(signal_name, reactor)
+        else:
+            self.register(signal_name, reactor)
 
     def broadcast(self, signal):
         """Broadcasts a signal to all Reactors registered with the specified Signal's name.
