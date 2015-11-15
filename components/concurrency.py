@@ -96,7 +96,6 @@ class GUIReactor(Receiver):
         self._root.mainloop()
     def quit(self):
         """Quits the GUI and unblocks the thread that called the start method."""
-        self._root.destroy()
         self._root.quit()
         self._run_post()
     def _run(self):

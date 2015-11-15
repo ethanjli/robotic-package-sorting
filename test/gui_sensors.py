@@ -12,7 +12,6 @@ class GUISensors(RobotApp):
     """Reads out robot sensor values."""
     def __init__(self):
         super(GUISensors, self).__init__()
-        self._robot = None
         self.__sensors_frame = None
         self.__effectors_frame = None
         self._initialize_widgets()
@@ -51,13 +50,11 @@ class GUISensors(RobotApp):
         self.__effectors_frame.pack(fill=tk.X)
         tk.Button(self.__effectors_frame, name="beepButton",
                   text="Beep", command=self._beep, state=tk.DISABLED).pack(fill=tk.X)
-    def _register_robots(self, robot_list):
-        self._robot = robot_list[0]
     def _initialize_threads(self):
-        sensor_monitor = Monitor("Sensors Monitor", self._robot)
+        sensor_monitor = Monitor("Sensors Monitor", self._robots[0])
         self._threads["Sensors Monitor"] = sensor_monitor
 
-        beeper = Beeper("Beeper", self._robot)
+        beeper = Beeper("Beeper", self._robots[0])
         self.register("Beep", beeper)
         self._threads["Beeper"] = beeper
     def _connect_post(self):
