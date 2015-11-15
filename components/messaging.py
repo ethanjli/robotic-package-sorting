@@ -24,6 +24,24 @@ class Receiver(object):
                 continue
             self._queue.task_done()
 
+    # Message processing
+    def _react_all(self):
+        """Reacts to all received Signals.
+        Blocks until all received Signals, if any exist, have been reacted to.
+        Delegates any special handling of None signals to the _react method.
+        """
+        while not self._queue.empty(): # Process all waiting Signals
+            try:
+                self._react(self._queue.get(False))
+            except queue.Empty:
+                continue
+            self._queue.task_done()
+
+    # Abstract methods
+    def _react(self, signal):
+        """Processes a Signal."""
+        pass
+
 class Broadcaster(object):
     """Provides mixin functionality to broadcast Signals to groups of Reactors.
     Reactors can be registered to listen to Signals (based on Signal name)

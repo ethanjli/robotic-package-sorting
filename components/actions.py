@@ -17,8 +17,8 @@ class Echoer(Reactor):
 class Beeper(Reactor):
     """Beeps. Useful for notifications.
 
-    Signals:
-        Will react to any Signal it receives, regardless of name. Data should be a
+    Signals Received:
+        Will react to any Signal, regardless of name. Data should be a
         2-tuple of the note and its duration.
     """
     def __init__(self, name, robot):
@@ -34,7 +34,7 @@ class Beeper(Reactor):
 class Mover(Reactor):
     """Moves the robot using its wheels.
 
-    Signals:
+    Signals Received:
         Advance: Data should be a positive int of the speed.
         Reverse: Data should be a positive int of the speed.
         Stop: Data is ignored.
@@ -68,22 +68,3 @@ class Mover(Reactor):
     def _stop(self):
         self._robot.set_wheel(0, 0)
         self._robot.set_wheel(1, 0)
-
-class ScannerRotator(Reactor):
-    """Moves the PSD scanner.
-
-    Signals:
-        Will react to any Signal it receives, regardless of name. Data should be a
-        positive int of the angle.
-    """
-    def __init__(self, name, robot):
-        super(ScannerRotator, self).__init__(name)
-        self._robot = robot
-
-    def _react(self, signal):
-        self._robot.set_port(SERVO_PORT, signal.Data)
-    def _run_pre(self):
-        self._robot.set_io_mode(SERVO_PORT, 0x08)
-        self._robot.set_port(SERVO_PORT, 90)
-    def _run_post(self):
-        self._robot.set_port(SERVO_PORT, 90)

@@ -60,9 +60,6 @@ class Reactor(InterruptableThread, Receiver):
         self._run_post()
 
     # Abstract methods
-    def _react(self, signal):
-        """Processes a Signal."""
-        pass
     def _run_pre(self):
         """Executes before the thread starts. Useful for initialization."""
         pass
@@ -99,18 +96,11 @@ class GUIReactor(Receiver):
         self._root.quit()
         self._run_post()
     def _run(self):
-        while not self._queue.empty(): # Process all waiting Signals
-            try:
-                self._react(self._queue.get(False))
-            except queue.Empty:
-                continue
-            self._queue.task_done()
+        """Reacts to any received signals and then sleeps for a bit."""
+        self._react_all()
         self._root.after(self.__update_interval, self._run)
 
     # Abstract methods
-    def _react(self, signal):
-        """Processes a Signal."""
-        pass
     def _run_pre(self):
         """Executes before the GUI starts. Useful for initialization."""
         pass
