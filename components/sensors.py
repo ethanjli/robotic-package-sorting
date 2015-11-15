@@ -25,13 +25,13 @@ class Monitor(InterruptableThread, Broadcaster):
         self._num_listeners = Semaphore(0) # tracks the number of registered Reactors
 
     # Extending parent functions in Broadcaster
-    def register_reactor(self, signal_name, reactor):
+    def register(self, signal_name, reactor):
         """Registers a Reactor to listen for all signals of the specified name."""
-        super(Monitor, self).register_reactor(signal_name, reactor)
+        super(Monitor, self).register(signal_name, reactor)
         self._num_listeners.release()
-    def deregister_reactor(self, signal_name, reactor):
+    def deregister(self, signal_name, reactor):
         """Removes a Reactor that previously listened for signals."""
-        super(Monitor, self).deregister_reactor(signal_name, reactor)
+        super(Monitor, self).deregister(signal_name, reactor)
         self._num_listeners.acquire()
 
     def _wake(self):

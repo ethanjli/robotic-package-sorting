@@ -33,7 +33,7 @@ class Broadcaster(object):
         super(Broadcaster, self).__init__()
         self._reactors = {}
 
-    def register_reactor(self, signal_name, reactor):
+    def register(self, signal_name, reactor):
         """Registers a Reactor to listen for all signals of the specified name.
 
         Arguments:
@@ -41,10 +41,9 @@ class Broadcaster(object):
             reactor: a Reactor.
         """
         if signal_name not in self._reactors:
-            self._reactors[signal_name] = {}
+            self._reactors[signal_name] = set()
         self._reactors[signal_name].add(reactor)
-
-    def deregister_reactor(self, signal_name, reactor):
+    def deregister(self, signal_name, reactor):
         """Removes a Reactor that previously listened for signals.
 
         Arguments:
@@ -65,6 +64,9 @@ class Broadcaster(object):
             raise ValueError("Reactor \"{}\" is not currently registered to listen "
                              "to \"{}\" signals".format(reactor.get_name(), signal_name))
         self._reactors[signal_name].remove(reactor)
+    def is_registered(self, signal_name, reactor):
+        """Checks whether a Reactor is currently listening for signals."""
+        return signal_name in self._reactors and reactor in self._reactors[signal_name]
 
     def broadcast(self, signal):
         """Broadcasts a signal to all Reactors registered with the specified Signal's name.

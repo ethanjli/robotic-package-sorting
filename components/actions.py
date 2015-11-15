@@ -9,7 +9,7 @@ SERVO_PORT = 1
 class Echoer(Reactor):
     """Echoes any received Signals to stdout. Useful for debugging."""
     def __init__(self, name):
-        super(Echoer, self).__init__(name, [])
+        super(Echoer, self).__init__(name)
 
     def _react(self, signal):
         print(signal)
@@ -22,7 +22,7 @@ class Beeper(Reactor):
         2-tuple of the note and its duration.
     """
     def __init__(self, name, robot):
-        super(Beeper, self).__init__(name, [])
+        super(Beeper, self).__init__(name)
         self._robot = robot
 
     def _react(self, signal):
@@ -42,7 +42,7 @@ class Mover(Reactor):
         Rotate Right: Data should be a positive int of the speed.
     """
     def __init__(self, name, robot):
-        super(Mover, self).__init__(name, [])
+        super(Mover, self).__init__(name)
         self._robot = robot
 
     def _react(self, signal):
@@ -77,7 +77,7 @@ class ScannerRotator(Reactor):
         positive int of the angle.
     """
     def __init__(self, name, robot):
-        super(ScannerRotator, self).__init__(name, [])
+        super(ScannerRotator, self).__init__(name)
         self._robot = robot
 
     def _react(self, signal):
