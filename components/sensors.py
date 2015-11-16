@@ -10,8 +10,6 @@ from concurrency import InterruptableThread
 
 _WARMUP_TIME = 0.5
 
-_PSD_PORT = 0
-_SERVO_PORT = 1
 _PSD_STABILIZATION_INTERVAL = 0.8
 
 _FLOOR_FILTER_WINDOW = 4
@@ -72,17 +70,16 @@ class Monitor(InterruptableThread, Receiver, Broadcaster):
         self._run_post()
     def _react(self, signal):
         if signal.Name == "Servo":
-            self._robot.set_port(_SERVO_PORT, signal.Data)
+            self._robot.servo(signal.Data)
             self._psd_start_time = time.time() + _PSD_STABILIZATION_INTERVAL
             self._react_servo_post()
     def _run_pre(self):
         time.sleep(_WARMUP_TIME)
-        self._robot.set_io_mode(_PSD_PORT, 0x0)
-        self._robot.set_io_mode(_SERVO_PORT, 0x08)
-        self._robot.set_port(_SERVO_PORT, 90)
+        self._robot.init_psd_scanner()
+        self._robot.servo(90)
         time.sleep(_PSD_STABILIZATION_INTERVAL)
     def _run_post(self):
-        self._robot.set_port(_SERVO_PORT, 90)
+        self._robot.servo(90)
         time.sleep(_PSD_STABILIZATION_INTERVAL)
 
     # Abstract methods
@@ -108,13 +105,13 @@ class SimpleMonitor(Monitor):
 
     # Implementation of parent abstract methods
     def _update_floor(self):
-        floor = (self._robot.get_floor(0), self._robot.get_floor(1))
+        floor = self._robot.get_floor()
         self.broadcast(Signal("Floor", self.get_name(), floor))
     def _update_proximity(self):
-        proximity = (self._robot.get_proximity(0), self._robot.get_proximity(1))
+        proximity = self._robot.get_proximity()
         self.broadcast(Signal("Proximity", self.get_name(), proximity))
     def _update_psd(self):
-        psd = self._robot.get_port(_PSD_PORT)
+        psd = self._robot.get_psd()
         self.broadcast(Signal("PSD", self.get_name(), psd))
 
 class FilteringMonitor(Monitor):
@@ -133,7 +130,7 @@ class FilteringMonitor(Monitor):
     def _react_servo_post(self):
         self._psd_filter.send(None)
     def _update_floor(self):
-        floor = (self._robot.get_floor(0), self._robot.get_floor(1))
+        floor = self._robot.get_floor()
         floor_filtered = (self._floor_left_filter.send(floor[0]),
                           self._floor_right_filter.send(floor[1]))
         for value in floor_filtered:
@@ -141,7 +138,7 @@ class FilteringMonitor(Monitor):
                 return
         self.broadcast(Signal("Floor", self.get_name(), floor_filtered))
     def _update_proximity(self):
-        proximity = (self._robot.get_proximity(0), self._robot.get_proximity(1))
+        proximity = self._robot.get_proximity()
         proximity_filtered = (self._proximity_left_filter.send(proximity[0]),
                               self._proximity_right_filter.send(proximity[1]))
         for value in proximity_filtered:
@@ -149,7 +146,7 @@ class FilteringMonitor(Monitor):
                 return
         self.broadcast(Signal("Proximity", self.get_name(), proximity_filtered))
     def _update_psd(self):
-        psd = self._robot.get_port(_PSD_PORT)
+        psd = self._robot.get_psd()
         psd_filtered = self._psd_filter.send(psd)
         if psd_filtered is None:
             return

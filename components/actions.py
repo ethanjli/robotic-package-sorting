@@ -2,7 +2,7 @@
 These classes usually send commands to a robot specified at instantiation."""
 import time
 
-from concurrency import Reactor
+from components.concurrency import Reactor
 
 SERVO_PORT = 1
 
@@ -26,10 +26,10 @@ class Beeper(Reactor):
         self._robot = robot
 
     def _react(self, signal):
-        self._robot.set_musical_note(signal.Data[0])
+        self._robot.beep(signal.Data[0])
         time.sleep(signal.Data[1])
     def _run_post(self):
-        self._robot.set_musical_note(0)
+        self._robot.beep(0)
 
 class Mover(Reactor):
     """Moves the robot using its wheels.
@@ -50,22 +50,17 @@ class Mover(Reactor):
         if signal.Name == "Stop":
             self._stop()
         elif signal.Name == "Advance":
-            self._robot.set_wheel(0, signal.Data)
-            self._robot.set_wheel(1, signal.Data)
+            self._robot.move(signal.Data)
         elif signal.Name == "Reverse":
-            self._robot.set_wheel(0, -signal.Data)
-            self._robot.set_wheel(1, -signal.Data)
+            self._robot.move(-signal.Data)
         elif signal.Name == "Rotate Left":
-            self._robot.set_wheel(0, -signal.Data)
-            self._robot.set_wheel(1, signal.Data)
+            self._robot.rotate(signal.Data)
         elif signal.Name == "Rotate Right":
-            self._robot.set_wheel(0, signal.Data)
-            self._robot.set_wheel(1, -signal.Data)
+            self._robot.rotate(-signal.Data)
     def _run_pre(self):
         self._stop()
     def _run_post(self):
         self._stop()
 
     def _stop(self):
-        self._robot.set_wheel(0, 0)
-        self._robot.set_wheel(1, 0)
+        self._robot.move(0)

@@ -5,7 +5,7 @@ from collections import namedtuple
 import Queue as queue
 import Tkinter as tk
 
-from messaging import Receiver
+from components.messaging import Receiver
 
 class InterruptableThread(object):
     """Interface class to support easier threading."""

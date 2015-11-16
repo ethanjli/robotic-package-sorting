@@ -5,17 +5,86 @@ import Tkinter as tk
 import tkMessageBox
 
 from components.util import ordinal
-from components.messaging import Broadcaster
+from components.messaging import Receiver, Broadcaster
 from components.concurrency import GUIReactor
 from hamster.comm_usb import RobotComm
 
 MIN_RSSI = -50
 
+_PSD_PORT = 0
+_SERVO_PORT = 1
+
+class Robot(object):
+    """Proxy for a Hamster robot and/or a simulated version of the robot."""
+    def __init__(self, hamster_robot):
+        self._hamster = hamster_robot
+
+    # Initialization
+    def init_psd_scanner(self):
+        """Initialize the I/O ports to run the PSD scanner."""
+        self._hamster.set_io_mode(_PSD_PORT, 0x0)
+        self._hamster.set_io_mode(_SERVO_PORT, 0x08)
+
+    # Effectors
+    def beep(self, note):
+        """Set the buzzer to the specified musical note.
+
+        Arguments:
+            note: the musical note. 0 is silent, 1 - 88 represents piano keys.
+        """
+        self._hamster.set_musical_note(note)
+    def move(self, speed):
+        """Move the robot forwards/backwards at the specified speed.
+
+        Arguments:
+            speed: the movement speed. -100 (backwards) to 100 (forwards).
+        """
+        self._hamster.set_wheel(0, speed)
+        self._hamster.set_wheel(1, speed)
+    def rotate(self, speed):
+        """Rotate the robot counterclockwise/clockwise at the specified speed.
+
+        Arguments:
+            speed: the movement speed. -100 (clockwise) to 100 (counterclockwise).
+        """
+        self._hamster.set_wheel(0, -speed)
+        self._hamster.set_wheel(1, speed)
+    def servo(self, angle):
+        """Rotate the PSD scanner's servo to the specified angle.
+
+        Arguments:
+            angle: the target angle. 1 to 180.
+        """
+        self._hamster.set_port(_SERVO_PORT, angle)
+
+    # Sensors
+    def get_floor(self):
+        """Return the values of the floor sensors.
+
+        Return:
+            A 2-tuple of the left and right floor values.
+        """
+        return (self._hamster.get_floor(0), self._hamster.get_floor(1))
+    def get_proximity(self):
+        """Return the values of the proximity sensors.
+
+        Return:
+            A 2-tuple of the left and right proximity values.
+        """
+        return (self._hamster.get_proximity(0), self._hamster.get_proximity(1))
+    def get_psd(self):
+        """Return the values of the PSD sensor.
+
+        Return:
+            The PSD value.
+        """
+        return self._hamster.get_port(_PSD_PORT)
+
 class RobotApp(GUIReactor, Broadcaster):
     """Shows a simple window with a hello world message and a quit button."""
-    def __init__(self, num_robots=1):
-        super(RobotApp, self).__init__()
-        self.__comm = None
+    def __init__(self, name="App", update_interval=10, num_robots=1):
+        super(RobotApp, self).__init__(name, update_interval)
+        self.__hamster_comm = None
         self.__num_robots = num_robots
         self._robots = []
         self._threads = {}
@@ -25,12 +94,12 @@ class RobotApp(GUIReactor, Broadcaster):
     def _run_post(self):
         for _, thread in self._threads.items():
             thread.quit()
-        if self.__comm is None:
+        if self.__hamster_comm is None:
             return
-        for robot in self.__comm.robotList:
-            robot.reset()
+        for hamster_robot in self.__hamster_comm.robotList:
+            hamster_robot.reset()
         time.sleep(1.0)
-        self.__comm.stop()
+        self.__hamster_comm.stop()
 
     # Utility for subclasses
     def _initialize_robotapp_widgets(self, parent):
@@ -59,19 +128,21 @@ class RobotApp(GUIReactor, Broadcaster):
         self.__parent_frame.nametowidget("connect").config(text="Connected")
         self._connect_post()
     def __connect_next(self):
-        while self.__comm is None or len(self.__comm.robotList) <= len(self._robots):
+        while (self.__hamster_comm is None or
+               len(self.__hamster_comm.robotList) <= len(self._robots)):
             message = "Please connect the {} robot".format(ordinal(len(self._robots) + 1))
             if not tkMessageBox.askokcancel("Robot Connection Manager", message):
                 return False
-            while self.__comm is None:
-                if not self.__start_comm():
+            while self.__hamster_comm is None:
+                if not self.__start_hamster_comm():
                     return False
-        self._robots.append(self.__comm.robotList[len(self._robots)])
+        next_hamster = self.__hamster_comm.robotList[len(self._robots)]
+        self._robots.append(Robot(next_hamster))
         return True
-    def __start_comm(self):
-        self.__comm = RobotComm(self.__num_robots, MIN_RSSI)
-        if not self.__comm.start():
-            self.__comm = None
+    def __start_hamster_comm(self):
+        self.__hamster_comm = RobotComm(self.__num_robots, MIN_RSSI)
+        if not self.__hamster_comm.start():
+            self.__hamster_comm = None
             if not tkMessageBox.askretrycancel("Robot Connection Manager",
                                                "Cannot start the robot connection "
                                                "manager. Please try again."):

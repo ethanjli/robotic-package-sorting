@@ -10,8 +10,8 @@ from components.actions import Beeper
 
 class GUISensors(RobotApp):
     """Reads out robot sensor values."""
-    def __init__(self):
-        super(GUISensors, self).__init__()
+    def __init__(self, name="Sensors GUI", update_interval=10):
+        super(GUISensors, self).__init__(name, update_interval, 1)
         self.__sensors_frame = None
         self.__effectors_frame = None
         self._initialize_widgets()
@@ -118,13 +118,13 @@ class GUISensors(RobotApp):
 
     # Beep button callback
     def _beep(self):
-        self.broadcast(Signal("Beep", (40, 0.2)))
-        self.broadcast(Signal("Beep", (0, 0.1)))
+        self.broadcast(Signal("Beep", self.get_name(), (40, 0.2)))
+        self.broadcast(Signal("Beep", self.get_name(), (0, 0.1)))
 
     # Servo scale callback
     def _servo(self, _, dummy, operation):
         if operation == "w":
-            self.broadcast(Signal("Servo", self.__servo_angle.get()))
+            self.broadcast(Signal("Servo", self.get_name(), self.__servo_angle.get()))
 
 def main():
     """Runs test."""
