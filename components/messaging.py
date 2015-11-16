@@ -28,7 +28,8 @@ class Receiver(object):
     def _react_all(self):
         """Reacts to all received Signals.
         Blocks until all received Signals, if any exist, have been reacted to.
-        Delegates any special handling of None signals to the _react method.
+        Delegates any special handling of None signals to the _react method: to
+        quit from within _react, raise the queue.Empty exception.
         """
         while not self._queue.empty(): # Process all waiting Signals
             try:
