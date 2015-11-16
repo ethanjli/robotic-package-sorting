@@ -4,17 +4,12 @@ import time
 import Tkinter as tk
 import tkMessageBox
 
+from components.util import ordinal
 from components.messaging import Broadcaster
 from components.concurrency import GUIReactor
 from hamster.comm_usb import RobotComm
 
 MIN_RSSI = -50
-
-def _ordinal(n):
-    # Algorithm from Gareth's solution at:
-    # http://codegolf.stackexchange.com/questions/4707/outputting-ordinal-numbers-1st-2nd-3rd
-    k = n % 10
-    return "{}{}".format(n, "tsnrhtdd"[(n / 10 % 10 != 1) * (k < 4) * k::4])
 
 class RobotApp(GUIReactor, Broadcaster):
     """Shows a simple window with a hello world message and a quit button."""
@@ -65,7 +60,7 @@ class RobotApp(GUIReactor, Broadcaster):
         self._connect_post()
     def __connect_next(self):
         while self.__comm is None or len(self.__comm.robotList) <= len(self._robots):
-            message = "Please connect the {} robot".format(_ordinal(len(self._robots) + 1))
+            message = "Please connect the {} robot".format(ordinal(len(self._robots) + 1))
             if not tkMessageBox.askokcancel("Robot Connection Manager", message):
                 return False
             while self.__comm is None:

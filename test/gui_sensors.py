@@ -1,11 +1,11 @@
 """Script to test basic message-passing with GUIReactor.
-Continuously reads out sensor values monitored by Monitor."""
+Continuously reads out sensor values monitored by SimpleMonitor and FilteringMonitor."""
 import sys
 import Tkinter as tk
 
 from components.messaging import Signal
 from components.robots import RobotApp
-from components.sensors import Monitor
+from components.sensors import SimpleMonitor, FilteringMonitor
 from components.actions import Beeper
 
 class GUISensors(RobotApp):
@@ -19,14 +19,32 @@ class GUISensors(RobotApp):
     # Implementing abstract methods
     def _react(self, signal):
         if signal.Name == "Floor":
-            self.__sensors_frame.nametowidget("floor").config(text="Floor: ({}, {})"
-                                                              .format(*signal.Data))
+            if signal.Sender == "Sensors Monitor":
+                name = "floor"
+                label = "Raw Floor"
+            elif signal.Sender == "Filtering Sensors Monitor":
+                label = "Filtered Floor"
+                name = "filteredFloor"
+            self.__sensors_frame.nametowidget(name).config(text="{}: ({:.0f}, {:.0f})"
+                                                           .format(label, *signal.Data))
         elif signal.Name == "Proximity":
-            self.__sensors_frame.nametowidget("proximity").config(text="Prox: ({}, {})"
-                                                                  .format(*signal.Data))
+            if signal.Sender == "Sensors Monitor":
+                name = "proximity"
+                label = "Raw Prox"
+            elif signal.Sender == "Filtering Sensors Monitor":
+                name = "filteredProximity"
+                label = "Filtered Prox"
+            self.__sensors_frame.nametowidget(name).config(text="{}: ({:.0f}, {:.0f})"
+                                                           .format(label, *signal.Data))
         elif signal.Name == "PSD":
-            self.__sensors_frame.nametowidget("psd").config(text="PSD: {}"
-                                                            .format(signal.Data))
+            if signal.Sender == "Sensors Monitor":
+                name = "psd"
+                label = "Raw PSD"
+            elif signal.Sender == "Filtering Sensors Monitor":
+                name = "filteredPSD"
+                label = "Filtered PSD"
+            self.__sensors_frame.nametowidget(name).config(text="{}: {:.0f}"
+                                                           .format(label, signal.Data))
     def _initialize_widgets(self):
         app_frame = tk.LabelFrame(self._root, name="appFrame",
                                   borderwidth=2, relief=tk.RIDGE,
@@ -39,11 +57,17 @@ class GUISensors(RobotApp):
                                              text="Sensors")
         self.__sensors_frame.pack(fill=tk.X)
         tk.Label(self.__sensors_frame, name="floor",
-                 text="Floor: (?, ?)").pack(fill=tk.X)
+                 text="Raw Floor: (?, ?)").pack(fill=tk.X)
         tk.Label(self.__sensors_frame, name="proximity",
-                 text="Prox: (?, ?)").pack(fill=tk.X)
+                 text="Raw Prox: (?, ?)").pack(fill=tk.X)
         tk.Label(self.__sensors_frame, name="psd",
-                 text="PSD: ?").pack(fill=tk.X)
+                 text="Raw PSD: ?").pack(fill=tk.X)
+        tk.Label(self.__sensors_frame, name="filteredFloor",
+                 text="Filtered Floor: (?, ?)").pack(fill=tk.X)
+        tk.Label(self.__sensors_frame, name="filteredProximity",
+                 text="Filtered Prox: (?, ?)").pack(fill=tk.X)
+        tk.Label(self.__sensors_frame, name="filteredPSD",
+                 text="Filtered PSD: ?").pack(fill=tk.X)
         tk.Button(self.__sensors_frame, name="monitor", text="Monitor",
                   command=self._toggle_monitor, state=tk.DISABLED).pack(fill=tk.X)
 
@@ -59,9 +83,13 @@ class GUISensors(RobotApp):
         tk.OptionMenu(self.__effectors_frame, self.__servo_angle,
                       *range(6, 181, 6)).pack(fill=tk.X)
     def _initialize_threads(self):
-        sensor_monitor = Monitor("Sensors Monitor", self._robots[0])
-        self.register("Servo", sensor_monitor)
-        self._threads["Sensors Monitor"] = sensor_monitor
+        simple_monitor = SimpleMonitor("Sensors Monitor", self._robots[0])
+        self.register("Servo", simple_monitor)
+        self._threads["Sensors Monitor"] = simple_monitor
+
+        filtered_monitor = FilteringMonitor("Filtering Sensors Monitor", self._robots[0])
+        self.register("Servo", filtered_monitor)
+        self._threads["Filtering Sensors Monitor"] = filtered_monitor
 
         beeper = Beeper("Beeper", self._robots[0])
         self.register("Beep", beeper)
@@ -72,12 +100,18 @@ class GUISensors(RobotApp):
 
     # Monitor button callback
     def _toggle_monitor(self):
-        sensor_monitor = self._threads["Sensors Monitor"]
-        sensor_monitor.toggle_registered("Floor", self)
-        sensor_monitor.toggle_registered("Proximity", self)
-        sensor_monitor.toggle_registered("PSD", self)
+        simple_monitor = self._threads["Sensors Monitor"]
+        simple_monitor.toggle_registered("Floor", self)
+        simple_monitor.toggle_registered("Proximity", self)
+        simple_monitor.toggle_registered("PSD", self)
+
+        filtered_monitor = self._threads["Filtering Sensors Monitor"]
+        filtered_monitor.toggle_registered("Floor", self)
+        filtered_monitor.toggle_registered("Proximity", self)
+        filtered_monitor.toggle_registered("PSD", self)
+
         monitor_button = self.__sensors_frame.nametowidget("monitor")
-        if sensor_monitor.is_registered("Floor", self):
+        if simple_monitor.is_registered("Floor", self):
             monitor_button.config(text="Stop Monitoring")
         else:
             monitor_button.config(text="Monitor")
