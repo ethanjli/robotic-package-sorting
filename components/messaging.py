@@ -9,20 +9,27 @@ class Receiver(object):
     """Provides mixin functionality to receive Signals."""
     def __init__(self):
         super(Receiver, self).__init__()
-        self._queue = queue.Queue()
+        self.__queue = queue.Queue()
 
     # Message-passing
     def send(self, signal):
         """Receives a Signal and wakes the thread if it is sleeping."""
-        self._queue.put(signal)
+        self.__queue.put(signal)
     def clear(self):
         """Discards all waiting Signals. Useful if the Reactor was sleeping."""
-        while not self._queue.empty():
+        while not self.__queue.empty():
             try:
-                self._queue.get(False)
+                self.__queue.get(False)
             except queue.Empty:
                 continue
-            self._queue.task_done()
+            self.__queue.task_done()
+    def _receive(self):
+        """Gets the next Signal from the queue. Blocks until it can do so."""
+        return self.__queue.get()
+    def _received_done(self):
+        """Acknowledges that the Signal received has been processed.
+        Only useful for other threads that are joining the __queue.
+        """
 
     # Message processing
     def _react_all(self):
@@ -30,12 +37,12 @@ class Receiver(object):
         Blocks until all received Signals, if any exist, have been reacted to.
         Delegates any special handling of None signals to the _react method.
         """
-        while not self._queue.empty(): # Process all waiting Signals
+        while not self.__queue.empty(): # Process all waiting Signals
             try:
-                self._react(self._queue.get(False))
+                self._react(self.__queue.get(False))
             except queue.Empty:
                 continue
-            self._queue.task_done()
+            self._received_done()
 
     # Abstract methods
     def _react(self, signal):

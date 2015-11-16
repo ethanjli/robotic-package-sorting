@@ -57,7 +57,7 @@ class Monitor(InterruptableThread, Receiver, Broadcaster):
         self._num_listeners.release()
     def _run(self):
         self._run_pre()
-        while not self._quit_flag.is_set():
+        while not self.will_quit():
             if self.__auto_sleep:
                 self._num_listeners.acquire()
                 self._num_listeners.release()

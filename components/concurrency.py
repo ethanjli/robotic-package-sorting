@@ -12,7 +12,7 @@ class InterruptableThread(object):
     def __init__(self, name):
         super(InterruptableThread, self).__init__()
         self.__name = name
-        self._quit_flag = threading.Event()
+        self.__quit_flag = threading.Event()
         self.__thread = threading.Thread(target=self._run, name=name)
 
     def get_name(self):
@@ -23,12 +23,18 @@ class InterruptableThread(object):
     def start(self):
         """Starts the thread."""
         self.__thread.start()
+    def will_quit(self):
+        """Checks whether the thread is supposed to quit."""
+        return self.__quit_flag.is_set()
     def quit(self):
         """Quits and joins with the thread, if it's running."""
-        self._quit_flag.set()
+        self._quit_soon()
         self._wake()
         if self.__thread.is_alive():
             self.__thread.join()
+    def _quit_soon(self):
+        """Marks the flag that the thread will check to quit."""
+        self.__quit_flag.set()
 
     # Abstract methods
     def _wake(self):
@@ -46,17 +52,17 @@ class Reactor(InterruptableThread, Receiver):
     # Implementation of parent abstract methods
     def _wake(self):
         """Wakes the thread to prepare it to quit."""
-        self._queue.put(None)
+        self.send(None)
     def _run(self):
         """Runs as a thread."""
         self._run_pre()
-        while not self._quit_flag.is_set():
-            signal = self._queue.get()
+        while not self.will_quit():
+            signal = self._receive()
             if signal is not None:
                 self._react(signal)
             else:
-                self._quit_flag.set()
-            self._queue.task_done()
+                self._quit_soon()
+            self._received_done()
         self._run_post()
 
     # Abstract methods
