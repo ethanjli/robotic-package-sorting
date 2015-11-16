@@ -4,8 +4,8 @@ import tkMessageBox
 import ttk
 
 from components.util import ordinal
-from components.messaging import Receiver, Broadcaster
-from components.concurrency import GUIReactor
+from components.messaging import Broadcaster
+from components.concurrency import Reactor, GUIReactor
 from hamster.comm_usb import RobotComm
 
 MIN_RSSI = -50
@@ -78,6 +78,55 @@ class Robot(object):
             The PSD value.
         """
         return self._hamster.get_port(_PSD_PORT)
+class Beeper(Reactor):
+    """Beeps. Useful for notifications.
+
+    Signals Received:
+        Will react to any Signal, regardless of name or sender. Data should be a
+        2-tuple of the note and its duration.
+    """
+    def __init__(self, name, robot):
+        super(Beeper, self).__init__(name)
+        self._robot = robot
+
+    def _react(self, signal):
+        self._robot.beep(signal.Data[0])
+        time.sleep(signal.Data[1])
+    def _run_post(self):
+        self._robot.beep(0)
+class Mover(Reactor):
+    """Moves the robot using its wheels.
+
+    Signals Received:
+        Will react to any Signal of correct name, regardless of sender.
+        Advance: Data should be a positive int of the speed.
+        Reverse: Data should be a positive int of the speed.
+        Stop: Data is ignored.
+        Rotate Left: Data should be a positive int of the speed.
+        Rotate Right: Data should be a positive int of the speed.
+    """
+    def __init__(self, name, robot):
+        super(Mover, self).__init__(name)
+        self._robot = robot
+
+    def _react(self, signal):
+        if signal.Name == "Stop":
+            self._stop()
+        elif signal.Name == "Advance":
+            self._robot.move(signal.Data)
+        elif signal.Name == "Reverse":
+            self._robot.move(-signal.Data)
+        elif signal.Name == "Rotate Left":
+            self._robot.rotate(signal.Data)
+        elif signal.Name == "Rotate Right":
+            self._robot.rotate(-signal.Data)
+    def _run_pre(self):
+        self._stop()
+    def _run_post(self):
+        self._stop()
+
+    def _stop(self):
+        self._robot.move(0)
 
 class RobotApp(GUIReactor, Broadcaster):
     """Shows a simple window with a hello world message and a quit button."""
