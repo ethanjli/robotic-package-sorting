@@ -2,6 +2,7 @@
 Continuously reads out sensor values monitored by SimpleMonitor and FilteringMonitor."""
 import sys
 import Tkinter as tk
+import ttk
 
 from components.messaging import Signal
 from components.robots import RobotApp
@@ -46,42 +47,44 @@ class GUISensors(RobotApp):
             self.__sensors_frame.nametowidget(name).config(text="{}: {:.0f}"
                                                            .format(label, signal.Data))
     def _initialize_widgets(self):
-        app_frame = tk.LabelFrame(self._root, name="appFrame",
-                                  borderwidth=2, relief=tk.RIDGE,
-                                  text="App")
-        app_frame.pack(fill=tk.X)
+        app_frame = ttk.LabelFrame(self._root, name="appFrame",
+                                   borderwidth=2, relief="ridge",
+                                   text="App")
+        app_frame.pack(fill="x")
         self._initialize_robotapp_widgets(app_frame)
 
-        self.__sensors_frame = tk.LabelFrame(self._root, name="sensorsFrame",
-                                             borderwidth=2, relief=tk.RIDGE,
-                                             text="Sensors")
-        self.__sensors_frame.pack(fill=tk.X)
-        tk.Label(self.__sensors_frame, name="floor",
-                 text="Raw Floor: (?, ?)").pack(fill=tk.X)
-        tk.Label(self.__sensors_frame, name="proximity",
-                 text="Raw Prox: (?, ?)").pack(fill=tk.X)
-        tk.Label(self.__sensors_frame, name="psd",
-                 text="Raw PSD: ?").pack(fill=tk.X)
-        tk.Label(self.__sensors_frame, name="filteredFloor",
-                 text="Filtered Floor: (?, ?)").pack(fill=tk.X)
-        tk.Label(self.__sensors_frame, name="filteredProximity",
-                 text="Filtered Prox: (?, ?)").pack(fill=tk.X)
-        tk.Label(self.__sensors_frame, name="filteredPSD",
-                 text="Filtered PSD: ?").pack(fill=tk.X)
-        tk.Button(self.__sensors_frame, name="monitor", text="Monitor",
-                  command=self._toggle_monitor, state=tk.DISABLED).pack(fill=tk.X)
+        self.__sensors_frame = ttk.LabelFrame(self._root, name="sensorsFrame",
+                                              borderwidth=2, relief="ridge",
+                                              text="Sensors")
+        self.__sensors_frame.pack(fill="x")
+        ttk.Label(self.__sensors_frame, name="floor",
+                  text="Raw Floor: (?, ?)").pack(fill="x")
+        ttk.Label(self.__sensors_frame, name="proximity",
+                  text="Raw Prox: (?, ?)").pack(fill="x")
+        ttk.Label(self.__sensors_frame, name="psd",
+                  text="Raw PSD: ?").pack(fill="x")
+        ttk.Label(self.__sensors_frame, name="filteredFloor",
+                  text="Filtered Floor: (?, ?)").pack(fill="x")
+        ttk.Label(self.__sensors_frame, name="filteredProximity",
+                  text="Filtered Prox: (?, ?)").pack(fill="x")
+        ttk.Label(self.__sensors_frame, name="filteredPSD",
+                  text="Filtered PSD: ?").pack(fill="x")
+        ttk.Button(self.__sensors_frame, name="monitor", text="Monitor",
+                   command=self._toggle_monitor, state="disabled").pack(fill="x")
 
-        self.__effectors_frame = tk.LabelFrame(self._root, name="effectorsFrame",
-                                               borderwidth=2, relief=tk.RIDGE,
-                                               text="Effectors")
-        self.__effectors_frame.pack(fill=tk.X)
-        tk.Button(self.__effectors_frame, name="beep", text="Beep",
-                  command=self._beep, state=tk.DISABLED).pack(fill=tk.X)
-        self.__servo_angle = tk.IntVar()
-        self.__servo_angle.set(90)
+        self.__effectors_frame = ttk.LabelFrame(self._root, name="effectorsFrame",
+                                                borderwidth=2, relief="ridge",
+                                                text="Effectors")
+        self.__effectors_frame.pack(fill="x")
+        ttk.Button(self.__effectors_frame, name="beep", text="Beep",
+                   command=self._beep, state="disabled").pack(fill="x")
+        self.__servo_angle = tk.StringVar()
+        self.__servo_angle.set("90")
         self.__servo_angle.trace("w", self._servo)
-        tk.OptionMenu(self.__effectors_frame, self.__servo_angle,
-                      *range(6, 181, 6)).pack(fill=tk.X)
+        angles = ttk.Combobox(self.__effectors_frame, name="servo",
+                              textvariable=self.__servo_angle, state="disabled",
+                              values=[str(i) for i in range(1, 181)])
+        angles.pack(fill="x")
     def _initialize_threads(self):
         simple_monitor = SimpleMonitor("Sensors Monitor", self._robots[0])
         self.register("Servo", simple_monitor)
@@ -95,8 +98,9 @@ class GUISensors(RobotApp):
         self.register("Beep", beeper)
         self._threads["Beeper"] = beeper
     def _connect_post(self):
-        self.__sensors_frame.nametowidget("monitor").config(state=tk.NORMAL)
-        self.__effectors_frame.nametowidget("beep").config(state=tk.NORMAL)
+        self.__sensors_frame.nametowidget("monitor").config(state="normal")
+        self.__effectors_frame.nametowidget("beep").config(state="normal")
+        self.__effectors_frame.nametowidget("servo").config(state="readonly")
 
     # Monitor button callback
     def _toggle_monitor(self):
@@ -124,7 +128,7 @@ class GUISensors(RobotApp):
     # Servo scale callback
     def _servo(self, _, dummy, operation):
         if operation == "w":
-            self.broadcast(Signal("Servo", self.get_name(), self.__servo_angle.get()))
+            self.broadcast(Signal("Servo", self.get_name(), int(self.__servo_angle.get())))
 
 def main():
     """Runs test."""

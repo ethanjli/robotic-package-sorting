@@ -1,4 +1,4 @@
-"""Support for continuous monitoring of sensor data."""
+"""Support for continuous monitoring of hamster robot sensor data."""
 import time
 from threading import Semaphore
 

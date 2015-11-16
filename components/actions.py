@@ -4,8 +4,6 @@ import time
 
 from components.concurrency import Reactor
 
-SERVO_PORT = 1
-
 class Echoer(Reactor):
     """Echoes any received Signals to stdout. Useful for debugging."""
     def __init__(self, name):

@@ -1,8 +1,7 @@
-"""Script to test basic message-passing with GUIReactor.
-Continuously reads out sensor values monitored by Monitor."""
+"""Classes for management of hamster and virtual robots."""
 import time
-import Tkinter as tk
 import tkMessageBox
+import ttk
 
 from components.util import ordinal
 from components.messaging import Receiver, Broadcaster
@@ -110,14 +109,14 @@ class RobotApp(GUIReactor, Broadcaster):
             quit: a button to exit the application.
         """
         self.__parent_frame = parent
-        tk.Button(parent, name="connect", text="Connect",
-                  command=self.__connect_all).pack(side=tk.LEFT, fill=tk.Y)
-        tk.Button(parent, name="quit", text="Quit",
-                  command=self.quit).pack(side=tk.LEFT, fill=tk.Y)
+        ttk.Button(parent, name="connect", text="Connect",
+                   command=self.__connect_all).pack(side="left", fill="y")
+        ttk.Button(parent, name="quit", text="Quit",
+                   command=self.quit).pack(side="left", fill="y")
 
     # Connect button callback
     def __connect_all(self):
-        self.__parent_frame.nametowidget("connect").config(state=tk.DISABLED)
+        self.__parent_frame.nametowidget("connect").config(state="disabled")
         while len(self._robots) < self.__num_robots:
             if not self.__connect_next():
                 self.quit()

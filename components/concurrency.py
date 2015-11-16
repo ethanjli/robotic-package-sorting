@@ -1,9 +1,9 @@
-"""Convenience classes to support easier management of execution primitives
-for concurrency."""
+"""Convenience classes to support Actor model of concurrency, backed by threads."""
 import threading
 from collections import namedtuple
 import Queue as queue
 import Tkinter as tk
+import ttk
 
 from components.messaging import Receiver
 
@@ -78,7 +78,17 @@ class GUIReactor(Receiver):
         super(GUIReactor, self).__init__()
         self.__name = name
         self._root = tk.Tk()
+        self.__initialize_theming()
         self.__update_interval = update_interval
+    def __initialize_theming(self):
+        style = ttk.Style()
+        if "aqua" in style.theme_names():
+            style.theme_use("aqua") # OS X
+        elif "vista" in style.theme_names():
+            style.theme_use("vista") # Windows
+        else:
+            style.theme_use("clam") # Linux
+        self._root.style = style
 
     def get_name(self):
         """Returns the name of the thread instance as specified during instantiation."""
