@@ -18,7 +18,7 @@ class Beeper(Reactor):
     """Beeps. Useful for notifications.
 
     Signals Received:
-        Will react to any Signal, regardless of name. Data should be a
+        Will react to any Signal, regardless of name or sender. Data should be a
         2-tuple of the note and its duration.
     """
     def __init__(self, name, robot):
@@ -35,6 +35,7 @@ class Mover(Reactor):
     """Moves the robot using its wheels.
 
     Signals Received:
+        Will react to any Signal of correct name, regardless of sender.
         Advance: Data should be a positive int of the speed.
         Reverse: Data should be a positive int of the speed.
         Stop: Data is ignored.

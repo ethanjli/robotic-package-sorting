@@ -3,7 +3,7 @@ from collections import namedtuple
 import Queue as queue
 
 # Signals are the messages passed around by Reactors for inter-thread communication.
-Signal = namedtuple("Signal", ["Name", "Data"])
+Signal = namedtuple("Signal", ["Name", "Sender", "Data"])
 
 class Receiver(object):
     """Provides mixin functionality to receive Signals."""
