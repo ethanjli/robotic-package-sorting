@@ -11,7 +11,7 @@ from components.sensors import SimpleMonitor, FilteringMonitor
 class GUISensors(RobotApp):
     """Reads out robot sensor values."""
     def __init__(self, name="Sensors GUI", update_interval=10):
-        super(GUISensors, self).__init__(name, update_interval, 1)
+        super(GUISensors, self).__init__(name, update_interval, 2)
         self.__sensors_frame = None
         self.__effectors_frame = None
         self._initialize_widgets()
@@ -75,8 +75,10 @@ class GUISensors(RobotApp):
                                                 borderwidth=2, relief="ridge",
                                                 text="Effectors")
         self.__effectors_frame.pack(fill="x")
-        ttk.Button(self.__effectors_frame, name="beep", text="Beep",
-                   command=self._beep, state="disabled").pack(fill="x")
+        ttk.Button(self.__effectors_frame, name="beep1", text="Beep 1",
+                   command=self._beep1, state="disabled").pack(fill="x")
+        ttk.Button(self.__effectors_frame, name="beep2", text="Beep 2",
+                   command=self._beep2, state="disabled").pack(fill="x")
         self.__servo_angle = tk.StringVar()
         self.__servo_angle.set("90")
         self.__servo_angle.trace("w", self._servo)
@@ -93,12 +95,16 @@ class GUISensors(RobotApp):
         self.register("Servo", filtered_monitor)
         self._threads["Filtering Sensors Monitor"] = filtered_monitor
 
-        beeper = Beeper("Beeper", self._robots[0])
-        self.register("Beep", beeper)
-        self._threads["Beeper"] = beeper
+        beeper1 = Beeper("Beeper1", self._robots[0])
+        self.register("Beep1", beeper1)
+        self._threads["Beeper1"] = beeper1
+        beeper2 = Beeper("Beeper2", self._robots[1])
+        self.register("Beep2", beeper2)
+        self._threads["Beeper2"] = beeper2
     def _connect_post(self):
         self.__sensors_frame.nametowidget("monitor").config(state="normal")
-        self.__effectors_frame.nametowidget("beep").config(state="normal")
+        self.__effectors_frame.nametowidget("beep1").config(state="normal")
+        self.__effectors_frame.nametowidget("beep2").config(state="normal")
         self.__effectors_frame.nametowidget("servo").config(state="readonly")
 
     # Monitor button callback
@@ -120,9 +126,12 @@ class GUISensors(RobotApp):
             monitor_button.config(text="Monitor")
 
     # Beep button callback
-    def _beep(self):
-        self.broadcast(Signal("Beep", self.get_name(), (40, 0.2)))
-        self.broadcast(Signal("Beep", self.get_name(), (0, 0.1)))
+    def _beep1(self):
+        self.broadcast(Signal("Beep1", self.get_name(), (40, 0.2)))
+        self.broadcast(Signal("Beep1", self.get_name(), (0, 0.1)))
+    def _beep2(self):
+        self.broadcast(Signal("Beep2", self.get_name(), (40, 0.2)))
+        self.broadcast(Signal("Beep2", self.get_name(), (0, 0.1)))
 
     # Servo scale callback
     def _servo(self, _, dummy, operation):
