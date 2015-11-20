@@ -2,7 +2,7 @@
 from collections import namedtuple
 import Queue as queue
 
-# Signals are the messages passed around by Reactors for inter-thread communication.
+# Signals are the messages passed around by Receivers for inter-thread communication.
 Signal = namedtuple("Signal", ["Name", "Sender", "Data"])
 
 class Receiver(object):
@@ -16,7 +16,7 @@ class Receiver(object):
         """Receives a Signal and wakes the thread if it is sleeping."""
         self.__queue.put(signal)
     def clear(self):
-        """Discards all waiting Signals. Useful if the Reactor was sleeping."""
+        """Discards all waiting Signals. Useful if the Receiver was sleeping."""
         while not self.__queue.empty():
             try:
                 self.__queue.get(False)
@@ -50,64 +50,64 @@ class Receiver(object):
         pass
 
 class Broadcaster(object):
-    """Provides mixin functionality to broadcast Signals to groups of Reactors.
-    Reactors can be registered to listen to Signals (based on Signal name)
+    """Provides mixin functionality to broadcast Signals to groups of Receivers.
+    Receivers can be registered to listen to Signals (based on Signal name)
     that the Broadcaster emits.
     """
     def __init__(self):
         super(Broadcaster, self).__init__()
-        self.__reactors = {}
+        self.__receivers = {}
 
-    def register(self, signal_name, reactor):
-        """Registers a Reactor to listen for all signals of the specified name.
+    def register(self, signal_name, receiver):
+        """Registers a Receiver to listen for all signals of the specified name.
 
         Arguments:
             signal_name: the name of the type of Signal to listen to.
-            reactor: a Reactor.
+            receiver: a Receiver.
         """
-        if signal_name not in self.__reactors:
-            self.__reactors[signal_name] = set()
-        self.__reactors[signal_name].add(reactor)
-    def deregister(self, signal_name, reactor):
-        """Removes a Reactor that previously listened for signals.
+        if signal_name not in self.__receivers:
+            self.__receivers[signal_name] = set()
+        self.__receivers[signal_name].add(receiver)
+    def deregister(self, signal_name, receiver):
+        """Removes a Receiver that previously listened for signals.
 
         Arguments:
             signal_name: the name of the type of Signal to listen to.
-            reactor: a Reactor that was previously registered to listen to signals
+            receiver: a Receiver that was previously registered to listen to signals
             of type signal_name.
 
         Exceptions:
-            ValueError: no Reactor has ever been registered to listen to signals of
+            ValueError: no Receiver has ever been registered to listen to signals of
             type signal_name.
-            ValueError: the provided Reactor is not currently registered to listen to
+            ValueError: the provided Receiver is not currently registered to listen to
             signals of type signal_name.
         """
-        if signal_name not in self.__reactors:
-            raise ValueError("No Reactor has ever been registered to listen to "
+        if signal_name not in self.__receivers:
+            raise ValueError("No Receiver has ever been registered to listen to "
                              "\"{}\" signals".format(signal_name))
-        if reactor not in self.__reactors[signal_name]:
-            raise ValueError("Reactor \"{}\" is not currently registered to listen "
-                             "to \"{}\" signals".format(reactor.get_name(), signal_name))
-        self.__reactors[signal_name].remove(reactor)
-    def is_registered(self, signal_name, reactor):
-        """Checks whether a Reactor is currently listening for signals."""
-        return signal_name in self.__reactors and reactor in self.__reactors[signal_name]
-    def toggle_registered(self, signal_name, reactor):
-        """Toggles whether a Reactor is currently listening for signals."""
-        if self.is_registered(signal_name, reactor):
-            self.deregister(signal_name, reactor)
+        if receiver not in self.__receivers[signal_name]:
+            raise ValueError("Receiver \"{}\" is not currently registered to listen "
+                             "to \"{}\" signals".format(receiver.get_name(), signal_name))
+        self.__receivers[signal_name].remove(receiver)
+    def is_registered(self, signal_name, receiver):
+        """Checks whether a Receiver is currently listening for signals."""
+        return signal_name in self.__receivers and receiver in self.__receivers[signal_name]
+    def toggle_registered(self, signal_name, receiver):
+        """Toggles whether a Receiver is currently listening for signals."""
+        if self.is_registered(signal_name, receiver):
+            self.deregister(signal_name, receiver)
         else:
-            self.register(signal_name, reactor)
+            self.register(signal_name, receiver)
 
     def broadcast(self, signal):
-        """Broadcasts a signal to all Reactors registered with the specified Signal's name.
-        If no Reactor is registered with the specified Signal's name, does nothing.
+        """Broadcasts a signal to all Receiver registered with the specified Signal's name.
+        If no Receiver is registered with the specified Signal's name, does nothing.
 
         Arguments:
             signal: the signal to broadcast.
         """
-        if signal.Name not in self.__reactors:
+        if signal.Name not in self.__receivers:
             return
-        for reactor in self.__reactors[signal.Name]:
-            reactor.send(signal)
+        for receiver in self.__receivers[signal.Name]:
+            receiver.send(signal)
 
