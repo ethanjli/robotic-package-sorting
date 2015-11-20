@@ -10,7 +10,7 @@ import numpy as np
 from components.util import ordinal
 from components.messaging import Signal, Broadcaster
 from components.concurrency import InterruptableThread, Reactor, GUIReactor
-from hamster.comm_usb import RobotComm
+from hamster.comm_ble import RobotComm
 
 MIN_RSSI = -50
 
