@@ -17,7 +17,8 @@ MIN_RSSI = -50
 _PSD_PORT = 0
 _SERVO_PORT = 1
 
-_INSTANT_CENTER_OFFSET = 0.1 # cm
+_INSTANT_CENTER_OFFSET = 0.5 # cm
+_ROBOT_SIZE = 4 # cm
 
 # Coord should be a numpy array, Angle and Servo should be in radians
 Pose = namedtuple("Pose", ["Coord", "Angle", "Servo"])
@@ -35,6 +36,10 @@ class Robot(object):
         if self._hamster is not None:
             self._hamster.set_io_mode(_PSD_PORT, 0x0)
             self._hamster.set_io_mode(_SERVO_PORT, 0x08)
+
+    # Attribute access
+    def get_virtual(self):
+        return self._virtual
 
     # Effectors
     def beep(self, note):
@@ -228,11 +233,13 @@ class RobotApp(GUIReactor, Broadcaster):
     def __init__(self, name="App", update_interval=10, num_robots=1):
         super(RobotApp, self).__init__(name, update_interval)
         self.__hamster_comm = None
-        self.__num_robots = num_robots
+        self._num_robots = num_robots
         self.__virtual_robot_generator = self._generate_virtual_robots()
         self._robots = []
         self._threads = {}
         self.__parent_frame = None
+        self.__connect_button = None
+        self.__quit_button = None
 
     # Implementing abstract methods
     def _run_post(self):
@@ -254,22 +261,24 @@ class RobotApp(GUIReactor, Broadcaster):
             quit: a button to exit the application.
         """
         self.__parent_frame = parent
-        ttk.Button(parent, name="connect", text="Connect",
-                   command=self.__connect_all).pack(side="left", fill="y")
-        ttk.Button(parent, name="quit", text="Quit",
-                   command=self.quit).pack(side="left", fill="y")
+        self.__connect_button = ttk.Button(parent, name="connect", text="Connect",
+                                           command=self.__connect_all)
+        self.__connect_button.pack(side="left", fill="y")
+        self.__quit_button = ttk.Button(parent, name="quit", text="Quit",
+                                        command=self.quit)
+        self.__quit_button.pack(side="left", fill="y")
 
     # Connect button callback
     def __connect_all(self):
-        self.__parent_frame.nametowidget("connect").config(state="disabled")
-        while len(self._robots) < self.__num_robots:
+        self.__connect_button.config(state="disabled")
+        while len(self._robots) < self._num_robots:
             if not self.__connect_next():
                 self.quit()
                 return
         self._initialize_threads()
         for _, thread in self._threads.items():
             thread.start()
-        self.__parent_frame.nametowidget("connect").config(text="Connected")
+        self.__connect_button.config(text="Connected")
         self._connect_post()
     def __connect_next(self):
         while (self.__hamster_comm is None or
@@ -285,7 +294,7 @@ class RobotApp(GUIReactor, Broadcaster):
         self._robots.append(Robot(next_hamster, next(self.__virtual_robot_generator)))
         return True
     def __start_hamster_comm(self):
-        self.__hamster_comm = RobotComm(self.__num_robots, MIN_RSSI)
+        self.__hamster_comm = RobotComm(self._num_robots, MIN_RSSI)
         if not self.__hamster_comm.start():
             self.__hamster_comm = None
             if not tkMessageBox.askretrycancel("Robot Connection Manager",
@@ -295,12 +304,11 @@ class RobotApp(GUIReactor, Broadcaster):
                 return False
         return True
     def __add_virtual_substitute(self):
-        if tkMessageBox.askokcancel("Robot Connection Manager",
-                                    "Add virtual robot instead?"):
-            self._robots.append(Robot(None, next(self.__virtual_robot_generator)))
-            return True
-        else:
+        if not tkMessageBox.askokcancel("Robot Connection Manager",
+                                        "Add virtual robot instead?"):
             return False
+        self._robots.append(Robot(None, next(self.__virtual_robot_generator)))
+        return True
 
     # Abstract methods
     def _initialize_threads(self):
@@ -313,7 +321,7 @@ class RobotApp(GUIReactor, Broadcaster):
         """A generator to yield the specified number of virtual robots
         The order of virtual robots generated should correspond to the order of
         hamster robots added."""
-        for _ in range(0, self.__num_robots):
+        for _ in range(0, self._num_robots):
             yield None
 
 class Simulator(RobotApp):
@@ -322,9 +330,11 @@ class Simulator(RobotApp):
         super(Simulator, self).__init__(name, update_interval, num_robots)
         self.__parent_frame = None
         self.__canvas = None
+        self.__scale = 1
+        self.__reset_button = None
 
     # Utility for subclasses
-    def _initialize_simulator_widgets(self, parent, bounds):
+    def _initialize_simulator_widgets(self, parent, bounds, scale=20):
         """Add RobotSimulator widgets into the specified parent widget.
 
         Widgets:
@@ -332,8 +342,18 @@ class Simulator(RobotApp):
             reset: a button to reset the virtual world to its initial state.
             bounds: a 4-tuple of the min x coord, min y coord, max x coord, and
             max y coord that the canvas should be able to display.
+            scale: number of pixels per cm of the virtual world.
         """
         self.__parent_frame = parent
-        self.__canvas = tk.Canvas(self._root, name="canvas", bg="white",
-                                  width=(bounds[2] - bounds[0]),
-                                  height=(bounds[3] - bounds[1]))
+        self.__canvas = tk.Canvas(parent, name="canvas", bg="white",
+                                  width=scale * (bounds[2] - bounds[0]),
+                                  height=scale * (bounds[3] - bounds[1]))
+        self.__canvas.pack()
+        self.__reset_button = ttk.Button(parent, name="reset", text="Reset",
+                                         command=self._reset_simulator)
+        self.__reset_button.pack()
+
+    # Reset button callback
+    def _reset_simulator(self):
+        """(Re)initializes the simulator to its initial state."""
+        pass
