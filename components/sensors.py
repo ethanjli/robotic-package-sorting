@@ -1,6 +1,7 @@
 """Support for continuous monitoring of hamster robot sensor data."""
 import time
 from threading import Semaphore
+import Queue as queue
 
 from numpy import median
 
@@ -55,6 +56,7 @@ class Monitor(InterruptableThread, Receiver, Broadcaster):
     # Implementation of parent abstract methods
     def _wake(self):
         self._num_listeners.release()
+        self.send(None)
     def _run(self):
         self._run_pre()
         while not self.will_quit():
@@ -69,7 +71,10 @@ class Monitor(InterruptableThread, Receiver, Broadcaster):
             time.sleep(self._update_interval)
         self._run_post()
     def _react(self, signal):
-        if signal.Name == "Servo":
+        # should only be called from within a _react_all call
+        if signal is None:
+            raise queue.Empty # interrupts the _react_all call
+        elif signal.Name == "Servo":
             self._robot.servo(signal.Data)
             self._psd_start_time = time.time() + _PSD_STABILIZATION_INTERVAL
             self._react_servo_post()
