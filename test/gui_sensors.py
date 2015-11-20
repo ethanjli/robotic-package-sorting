@@ -89,7 +89,7 @@ class GUISensors(RobotApp):
         self.register("Servo", simple_monitor)
         self._threads["Sensors Monitor"] = simple_monitor
 
-        filtered_monitor = FilteringMonitor("Filtering Sensors Monitor", self._robots[0])
+        filtered_monitor = FilteringMonitor("Filtering Sensors Monitor", self._robots[1])
         self.register("Servo", filtered_monitor)
         self._threads["Filtering Sensors Monitor"] = filtered_monitor
 
