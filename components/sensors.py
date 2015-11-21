@@ -29,9 +29,10 @@ class Monitor(InterruptableThread, Receiver, Broadcaster):
 
     Signals Received:
         Received Signals are only processed when at least one Reactor is currently
-        registered to receive Signals from the Monitor. Signals are processed
-        regardless of sender. Ignores None signals.
+        registered to receive Signals from the Monitor. Signals are only processed
+        if their Namespace matches the name of the Monitor's robot.
         Servo: rotates the PSD scanner. Data should be a positive int of the target angle.
+        None: immediately prepares to quit the Monitor's thread.
     """
     def __init__(self, name, robot, update_interval=0.1, auto_sleep=True):
         super(Monitor, self).__init__(name)
@@ -74,6 +75,8 @@ class Monitor(InterruptableThread, Receiver, Broadcaster):
         # should only be called from within a _react_all call
         if signal is None:
             raise queue.Empty # interrupts the _react_all call
+        elif not signal.Namespace == self._robot.get_name():
+            return
         elif signal.Name == "Servo":
             self._robot.servo(signal.Data)
             self._psd_start_time = time.time() + _PSD_STABILIZATION_INTERVAL
@@ -105,19 +108,20 @@ class SimpleMonitor(Monitor):
     """A Monitor that updates sensor values.
     The reference implementation of Monitor.
     """
-    def __init__(self, name, robot, update_interval=0.1):
-        super(SimpleMonitor, self).__init__(name, robot, update_interval)
+    def __init__(self, name, robot, update_interval=0.1, auto_sleep=True):
+        super(SimpleMonitor, self).__init__(name, robot, update_interval, auto_sleep)
 
     # Implementation of parent abstract methods
     def _update_floor(self):
         floor = self._robot.get_floor()
-        self.broadcast(Signal("Floor", self.get_name(), floor))
+        self.broadcast(Signal("Floor", self.get_name(), self._robot.get_name(), floor))
     def _update_proximity(self):
         proximity = self._robot.get_proximity()
-        self.broadcast(Signal("Proximity", self.get_name(), proximity))
+        self.broadcast(Signal("Proximity", self.get_name(), self._robot.get_name(),
+                              proximity))
     def _update_psd(self):
         psd = self._robot.get_psd()
-        self.broadcast(Signal("PSD", self.get_name(), psd))
+        self.broadcast(Signal("PSD", self.get_name(), self._robot.get_name(), psd))
 
 class FilteringMonitor(Monitor):
     """A Monitor that updates low-pass filtered sensor values.
@@ -141,7 +145,8 @@ class FilteringMonitor(Monitor):
         for value in floor_filtered:
             if value is None:
                 return
-        self.broadcast(Signal("Floor", self.get_name(), floor_filtered))
+        self.broadcast(Signal("Floor", self.get_name(), self._robot.get_name(),
+                              floor_filtered))
     def _update_proximity(self):
         proximity = self._robot.get_proximity()
         proximity_filtered = (self._proximity_left_filter.send(proximity[0]),
@@ -149,10 +154,12 @@ class FilteringMonitor(Monitor):
         for value in proximity_filtered:
             if value is None:
                 return
-        self.broadcast(Signal("Proximity", self.get_name(), proximity_filtered))
+        self.broadcast(Signal("Proximity", self.get_name(), self._robot.get_name(),
+                              proximity_filtered))
     def _update_psd(self):
         psd = self._robot.get_psd()
         psd_filtered = self._psd_filter.send(psd)
         if psd_filtered is None:
             return
-        self.broadcast(Signal("PSD", self.get_name(), psd_filtered))
+        self.broadcast(Signal("PSD", self.get_name(), self._robot.get_name(),
+                              psd_filtered))

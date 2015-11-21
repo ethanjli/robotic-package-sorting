@@ -39,7 +39,14 @@ class Robot(object):
 
     # Attribute access
     def get_virtual(self):
+        """Returns the VirtualRobot."""
         return self._virtual
+    def get_name(self):
+        """Returns the name of the VirtualRobot, or else the Robot itself as a string."""
+        if self._virtual is not None:
+            return self._virtual.get_name()
+        elif self._hamster is not None:
+            return repr(self)
 
     # Effectors
     def beep(self, note):
@@ -109,14 +116,16 @@ class Beeper(Reactor):
     """Beeps. Useful for notifications.
 
     Signals Received:
-        Will react to any Signal, regardless of name or sender. Data should be a
-        2-tuple of the note and its duration.
+        Will react to any Signal whose Namespace matches the name of its robot.
+        Data should be a 2-tuple of the note and its duration.
     """
     def __init__(self, name, robot):
         super(Beeper, self).__init__(name)
         self._robot = robot
 
     def _react(self, signal):
+        if not signal.Namespace == self._robot.get_name():
+            return
         self._robot.beep(signal.Data[0])
         time.sleep(signal.Data[1])
     def _run_post(self):
@@ -125,7 +134,8 @@ class Mover(Reactor):
     """Moves the robot using its wheels.
 
     Signals Received:
-        Will react to any Signal of correct name, regardless of sender.
+        Will react to any Signal of correct name whose Namespace matches the name
+        of its robot.
         Advance: Data should be a positive int of the speed.
         Reverse: Data should be a positive int of the speed.
         Stop: Data is ignored.
@@ -137,6 +147,8 @@ class Mover(Reactor):
         self._robot = robot
 
     def _react(self, signal):
+        if not signal.Namespace == self._robot.get_name():
+            return
         if signal.Name == "Stop":
             self._stop()
         elif signal.Name == "Advance":
@@ -221,11 +233,13 @@ class VirtualRobot(InterruptableThread, Broadcaster):
                 speed = self._state.Data
                 direction = angle_to_unit_vector(self._pose_angle)
                 self._pose_coord = self._pose_coord + speed * delta_time * direction
-                self.broadcast(Signal("Position", self.get_name(), self.get_pose()))
+                self.broadcast(Signal("Position", self.get_name(), self.get_name(),
+                                      self.get_pose()))
             elif self._state.State == "Rotating":
                 speed = self._state.Data
                 self._pose_angle = self._pose_angle + speed * delta_time
-                self.broadcast(Signal("Position", self.get_name(), self.get_pose()))
+                self.broadcast(Signal("Position", self.get_name(), self.get_name(),
+                                      self.get_pose()))
             time.sleep(self.__update_interval)
 
 class RobotApp(GUIReactor, Broadcaster):
@@ -287,7 +301,6 @@ class RobotApp(GUIReactor, Broadcaster):
             if not tkMessageBox.askokcancel("Robot Connection Manager", message):
                 return self.__add_virtual_substitute()
             while self.__hamster_comm is None:
-                self.__start_hamster_comm()
                 if not self.__start_hamster_comm():
                     return False
         next_hamster = self.__hamster_comm.robotList[len(self._robots)]

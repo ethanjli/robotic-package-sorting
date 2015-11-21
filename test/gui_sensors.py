@@ -89,7 +89,7 @@ class GUISensors(RobotApp):
         self.register("Servo", simple_monitor)
         self._threads["Sensors Monitor"] = simple_monitor
 
-        filtered_monitor = FilteringMonitor("Filtering Sensors Monitor", self._robots[1])
+        filtered_monitor = FilteringMonitor("Filtering Sensors Monitor", self._robots[0])
         self.register("Servo", filtered_monitor)
         self._threads["Filtering Sensors Monitor"] = filtered_monitor
 
@@ -121,13 +121,14 @@ class GUISensors(RobotApp):
 
     # Beep button callback
     def _beep(self):
-        self.broadcast(Signal("Beep", self.get_name(), (40, 0.2)))
-        self.broadcast(Signal("Beep", self.get_name(), (0, 0.1)))
+        self.broadcast(Signal("Beep", self.get_name(), repr(self._robots[0]), (40, 0.2)))
+        self.broadcast(Signal("Beep", self.get_name(), repr(self._robots[0]), (0, 0.1)))
 
     # Servo scale callback
     def _servo(self, _, dummy, operation):
         if operation == "w":
-            self.broadcast(Signal("Servo", self.get_name(), int(self.__servo_angle.get())))
+            self.broadcast(Signal("Servo", self.get_name(), repr(self._robots[0]),
+                                  int(self.__servo_angle.get())))
 
 def main():
     """Runs test."""

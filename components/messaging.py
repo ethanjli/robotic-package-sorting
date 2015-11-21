@@ -3,7 +3,15 @@ from collections import namedtuple
 import Queue as queue
 
 # Signals are the messages passed around by Receivers for inter-thread communication.
-Signal = namedtuple("Signal", ["Name", "Sender", "Data"])
+# Name is the name of a Signal. Broadcasters can broadcast a Signal to all Receivers
+# registered to listen to that name.
+# Sender is the name of the object that sent the Signal, and usually corresponds to
+# the name of an InterruptableThread.
+# Namespace is the name of the namespace of the Signal's Name, and may correspond
+# to the name or ID of a robot. Along with Sender, it helps Receivers decide which
+# Signals to handle and how to do so.
+# Data is the payload data, and may correspond to a single value, a tuple, etc.
+Signal = namedtuple("Signal", ["Name", "Sender", "Namespace", "Data"])
 
 class Receiver(object):
     """Provides mixin functionality to receive Signals."""
