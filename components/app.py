@@ -193,8 +193,17 @@ class Simulator(RobotApp):
             max y coord of the virtual world that the canvas should be able to display.
             scale: number of pixels per cm of the virtual world.
         """
+        toolbar_frame = ttk.Frame(parent)
+        toolbar_frame.pack(side="top", fill="x")
+        self.__reset_button = ttk.Button(toolbar_frame, name="reset", text="Setup",
+                                         command=self._reset_simulator)
+        self.__reset_button.pack(side="left")
+        self.__run_button = ttk.Button(toolbar_frame, name="run", text="Start",
+                                       command=self._run_simulator)
+        self.__run_button.pack(side="left")
+
         scaled_bounds = scale_bounds(bounds, scale)
-        canvas_frame = ttk.Frame()
+        canvas_frame = ttk.Frame(parent)
         canvas_frame.pack(fill="both", expand="yes")
         self.__canvas = tk.Canvas(canvas_frame, name="canvas", bg="white",
                                   width=scaled_bounds[2] - scaled_bounds[0],
@@ -210,9 +219,6 @@ class Simulator(RobotApp):
         self.__canvas.config(xscrollcommand=horiz_scroll.set,
                              yscrollcommand=vert_scroll.set)
         self.__canvas.pack(side="left", fill="both", expand="yes")
-        self.__reset_button = ttk.Button(parent, name="reset", text="Reset",
-                                         command=self._reset_simulator)
-        self.__reset_button.pack()
         self.__bounds = bounds
         self.__scale = scale
     def _initialize_world(self, grid_spacing=1):
@@ -225,7 +231,15 @@ class Simulator(RobotApp):
     # Reset button callback
     def _reset_simulator(self):
         """(Re)initializes the simulator to its initial state."""
+        if self.__reset_button.cget("text") == "Setup":
+            self.__reset_button.config(text="Reset")
         self._world.reset()
+
+    # Run button callback
+    def _run_simulator(self):
+        """Runs, pauses, or continues the simulator depending on its state."""
+        # TODO: implement
+        pass
 
     # Abstract methods
     def _populate_world(self):

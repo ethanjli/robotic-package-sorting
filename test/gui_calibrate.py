@@ -20,11 +20,21 @@ class GUICalibrate(Simulator):
     def _react(self, signal):
         pass
     def _initialize_widgets(self):
-        app_frame = ttk.LabelFrame(self._root, name="appFrame",
+        toolbar_frame = ttk.Frame(self._root)
+        toolbar_frame.pack(side="top", fill="x")
+        app_frame = ttk.LabelFrame(toolbar_frame, name="appFrame",
                                    borderwidth=2, relief="ridge",
                                    text="App")
-        app_frame.pack(fill="x")
+        app_frame.pack(side="left")
         self._initialize_robotapp_widgets(app_frame)
+
+        calibrate_frame = ttk.LabelFrame(toolbar_frame, name="calibrateFrame",
+                                         borderwidth=2, relief="ridge",
+                                         text="Calibrate")
+        calibrate_frame.pack(side="left")
+        self.__rotate90_button = ttk.Button(calibrate_frame, name="rotate90", text="Rotate 90",
+                                            command=self._rotate90)
+        self.__rotate90_button.pack()
 
         simulator_frame = ttk.LabelFrame(self._root, name="simulatorFrame",
                                          borderwidth=2, relief="ridge",
@@ -42,6 +52,10 @@ class GUICalibrate(Simulator):
             yield VirtualRobot("Virtual {}".format(i))
     def _populate_world(self):
         self._world.add_wall(Wall(0, 0, 8))
+
+    # Rotate button callbacks
+    def _rotate90(self):
+        pass
 
 def main():
     """Runs test."""
