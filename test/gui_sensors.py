@@ -88,15 +88,15 @@ class GUISensors(RobotApp):
     def _initialize_threads(self):
         simple_monitor = SimpleMonitor("Sensors Monitor", self._robots[0])
         self.register("Servo", simple_monitor)
-        self._threads["Sensors Monitor"] = simple_monitor
+        self._add_thread(simple_monitor)
 
         filtered_monitor = FilteringMonitor("Filtering Sensors Monitor", self._robots[0])
         self.register("Servo", filtered_monitor)
-        self._threads["Filtering Sensors Monitor"] = filtered_monitor
+        self._add_thread(filtered_monitor)
 
         beeper = Beeper("Beeper", self._robots[0])
         self.register("Beep", beeper)
-        self._threads["Beeper"] = beeper
+        self._add_thread(beeper)
     def _connect_post(self):
         self.__sensors_frame.nametowidget("monitor").config(state="normal")
         self.__effectors_frame.nametowidget("beep").config(state="normal")

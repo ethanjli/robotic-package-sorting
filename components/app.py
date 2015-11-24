@@ -121,7 +121,10 @@ class RobotApp(GUIReactor, Broadcaster):
         for robot in self._robots:
             virtual = robot.get_virtual()
             if virtual is not None:
-                self._threads[virtual.get_name()] = virtual
+                self._add_thread(virtual)
+    def _add_thread(self, thread):
+        """Adds the given thread object to the list of threads managed by the app."""
+        self._threads[thread.get_name()] = thread
 
     # Connect button callback
     def __connect_all(self):

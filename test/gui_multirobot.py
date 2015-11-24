@@ -49,17 +49,17 @@ class GUISensors(RobotApp):
     def _initialize_threads(self):
         monitor1 = SimpleMonitor("Monitor1", self._robots[0], 0.1, False)
         self.register("Servo", monitor1)
-        self._threads["Monitor1"] = monitor1
+        self._add_thread(monitor1)
         monitor2 = SimpleMonitor("Monitor2", self._robots[1], 0.1, False)
         self.register("Servo", monitor2)
-        self._threads["Monitor2"] = monitor2
+        self._add_thread(monitor2)
 
         beeper1 = Beeper("Beeper1", self._robots[0])
         self.register("Beep", beeper1)
-        self._threads["Beeper1"] = beeper1
+        self._add_thread(beeper1)
         beeper2 = Beeper("Beeper2", self._robots[1])
         self.register("Beep", beeper2)
-        self._threads["Beeper2"] = beeper2
+        self._add_thread(beeper2)
     def _connect_post(self):
         self.__effectors_frame.nametowidget("beep1").config(state="normal")
         self.__effectors_frame.nametowidget("beep2").config(state="normal")

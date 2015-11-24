@@ -2,7 +2,8 @@
 from components.messaging import Broadcaster
 from components.concurrency import Reactor
 from components.geometry import Pose, Frame, MobileFrame
-from components.geometry import to_vector, vector_to_tuple, vectors_to_flat, compose
+from components.geometry import to_vector, vector_to_tuple, vectors_to_flat
+from components.geometry import transformation, compose
 from components.geometry import transform, transform_x, transform_y, transform_all
 
 class VirtualWorld(Reactor, Broadcaster, Frame):
@@ -61,7 +62,7 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
         Arguments:
             virtual_robot: a VirtualRobot.
         """
-        virtual_robot.register("Position", self)
+        virtual_robot.register("Pose", self)
         self._robots[virtual_robot.get_name()] = virtual_robot
         self.__draw_robot(virtual_robot)
     def __draw_robot(self, virtual_robot):
@@ -71,6 +72,11 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
         chassis_shape = self._canvas.create_polygon(*transformed, fill="gray", outline="black",
                                                     tags=("robotChassis"))
         self._primitives["robotChassis"][robot_name] = chassis_shape
+    def __update_robot(self, robot_name, pose):
+        virtual_robot = self._robots[robot_name]
+        matrix = compose(self.get_transformation(), transformation(pose))
+        transformed = vectors_to_flat(transform_all(matrix, virtual_robot.get_corners()))
+        self._canvas.coords(self._primitives["robotChassis"][robot_name], *transformed)
     def add_wall(self, wall):
         """Adds a wall.
 
@@ -98,7 +104,7 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
     def _react(self, signal):
         if signal.Namespace in self._robots:
             if signal.Name == "Pose":
-                pass
+                self.__update_robot(signal.Namespace, signal.Data)
     def get_pose(self):
         return Pose(to_vector(0, 0), 0)
     def _get_scaling(self):

@@ -229,8 +229,8 @@ class VirtualRobot(InterruptableThread, Broadcaster, MobileFrame):
         """Returns a tuple of the robot chassis's coordinates as column vectors."""
         return (to_vector(-0.75, 2.5), to_vector(-0.75, 2), to_vector(-1.5, 2),
                 to_vector(-1.5, -2), to_vector(-0.75, -2), to_vector(-0.75, -2.5),
-                to_vector(2.5, -2.5), to_vector(3, -1.5), to_vector(3.4, -1), to_vector(2.5, -1),
-                to_vector(2.5, 1), to_vector(3.4, 1), to_vector(3, 1.5), to_vector(2.5, 2.5))
+                to_vector(2.5, -2.5), to_vector(3, -1.5), to_vector(3.4, -1), to_vector(2.5, -1.4),
+                to_vector(2.5, 1.4), to_vector(3.4, 1), to_vector(3, 1.5), to_vector(2.5, 2.5))
 
     # Implementation of parent abstract methods
     def _run(self):
