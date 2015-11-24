@@ -8,9 +8,7 @@ import numpy as np
 # Angle should be in radians from the frame's +x axis.
 Pose = namedtuple("Pose", ["Coord", "Angle"])
 
-def scale_bounds(bounds, scaling):
-    """Scales a bounding box 4-tuple by the scaling factor."""
-    return tuple(scaling * bound for bound in bounds)
+# Vector representations
 def to_vector(*values):
     """Converts the input values into a column vector."""
     return np.array([[value] for value in values])
@@ -29,15 +27,22 @@ def point_form(homogeneous_vector):
 def direction_vector(angle):
     """Converts an angle from the +x axis into a unit direction vector."""
     return to_vector(np.cos(angle), np.sin(angle))
+
+# Transformation matrices
 def rotation_matrix(angle):
     """Converts an angle from the +x axis into a 2-D rotation matrix."""
     return np.array([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]])
-def transformation_matrix(pose, x_scale=1, y_scale=1):
+def transformation(pose, x_scale=1, y_scale=1):
     """Returns the homogeneous transformation matrix of a frame to its reference."""
     scale_mat = np.array([[x_scale, 0], [0, y_scale]])
     rot_mat = rotation_matrix(pose.Angle)
     transl = pose.Coord
     return np.vstack([np.hstack([np.dot(scale_mat, rot_mat), transl]), [0, 0, 1]])
+def compose(transformation_one, transformation_two):
+    """Returns the transformation that is the composition of the two inputs."""
+    return np.dot(transformation_one, transformation_two)
+
+# Transformations
 def transform(matrix, frame_coords):
     """Transforms the non-homogeneous 2-D column vector using the homogeneous transformation matrix."""
     return point_form(np.dot(matrix, homogeneous_form(frame_coords)))
@@ -55,10 +60,10 @@ class Frame(object):
     def __init__(self):
         super(Frame, self).__init__()
 
-    def get_transformation_matrix(self):
+    def get_transformation(self):
         """Returns the transformation matrix for efficient composition of transformations."""
         (x_scale, y_scale) = self._get_scaling()
-        return transformation_matrix(self.get_pose(), x_scale, y_scale)
+        return transformation(self.get_pose(), x_scale, y_scale)
 
     # Abstract methods
     def get_pose(self):

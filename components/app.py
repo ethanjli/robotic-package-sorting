@@ -7,7 +7,6 @@ import ttk
 from components.util import ordinal
 from components.messaging import Receiver, Broadcaster
 from components.robots import HamsterComm, Robot
-from components.geometry import scale_bounds
 from components.world import VirtualWorld
 
 MIN_RSSI = -50
@@ -211,7 +210,7 @@ class Simulator(RobotApp):
         self.__run_button.pack(side="left")
 
         # Set up canvas
-        scaled_bounds = scale_bounds(bounds, scale)
+        scaled_bounds = tuple(scale * bound for bound in bounds)
         canvas_frame = ttk.Frame(parent)
         canvas_frame.pack(fill="both", expand="yes")
         self.__canvas = tk.Canvas(canvas_frame, name="canvas", bg="white",
