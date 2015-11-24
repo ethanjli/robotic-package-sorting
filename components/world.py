@@ -39,10 +39,10 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
                                      canvas_bounds[2], transformed,
                                      fill="gray", tags=("grid x", "grid"))
         # Origin label
-        origin_radius = 0.2
+        origin_radius = 0.4
         origin_bounds = (self.transform_x(-origin_radius), self.transform_y(-origin_radius),
                          self.transform_x(origin_radius), self.transform_y(origin_radius))
-        self._canvas.create_oval(origin_bounds, fill="gray")
+        self._canvas.create_oval(origin_bounds, outline="gray")
     def add_robot(self, virtual_robot):
         self._robots[virtual_robot.get_name()] = virtual_robot
     def add_wall(self, wall):

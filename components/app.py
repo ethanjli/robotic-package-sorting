@@ -12,6 +12,17 @@ from components.world import VirtualWorld
 
 MIN_RSSI = -50
 
+class AutoScrollbar(ttk.Scrollbar):
+    """A scrollbar that automatically hides if unneeded."""
+    def set(self, low, high):
+        """The callback command to set the scrollbar."""
+        orientation = str(self.cget("orient")).capitalize()
+        if float(low) <= 0.0 and float(high) >= 1.0:
+            self.config(style="Hidden.{}.TScrollbar".format(orientation))
+        else:
+            self.config(style="{}.TScrollbar".format(orientation))
+        tk.Scrollbar.set(self, low, high)
+
 class GUIReactor(Receiver):
     """Runs and updates a TKinter root window based on received Signals.
     Has the same public semantics as InterruptableThreads, but the start method blocks
@@ -27,12 +38,17 @@ class GUIReactor(Receiver):
         self.__update_interval = update_interval
     def __initialize_theming(self):
         style = ttk.Style()
+        # Set theme
         if "aqua" in style.theme_names():
             style.theme_use("aqua") # OS X
         elif "vista" in style.theme_names():
             style.theme_use("vista") # Windows
         else:
             style.theme_use("clam") # Linux
+        # Add custom styles
+        style.configure("Hidden.Horizontal.TScrollbar", arrowsize=0)
+        style.configure("Hidden.Vertical.TScrollbar", arrowsize=0)
+
         self._root.style = style
 
     def get_name(self):
@@ -178,13 +194,22 @@ class Simulator(RobotApp):
             scale: number of pixels per cm of the virtual world.
         """
         scaled_bounds = scale_bounds(bounds, scale)
-        print(scaled_bounds)
-        self.__canvas = tk.Canvas(parent, name="canvas", bg="white",
+        canvas_frame = ttk.Frame()
+        canvas_frame.pack(fill="both", expand="yes")
+        self.__canvas = tk.Canvas(canvas_frame, name="canvas", bg="white",
                                   width=scaled_bounds[2] - scaled_bounds[0],
                                   height=scaled_bounds[3] - scaled_bounds[1],
                                   scrollregion=(scaled_bounds[0], -scaled_bounds[3],
                                                 scaled_bounds[2], -scaled_bounds[1]))
-        self.__canvas.pack(fill="both", expand="yes")
+        horiz_scroll = AutoScrollbar(canvas_frame, orient="horizontal")
+        horiz_scroll.pack(side="bottom", fill="x")
+        horiz_scroll.config(command=self.__canvas.xview)
+        vert_scroll = AutoScrollbar(canvas_frame, orient="vertical")
+        vert_scroll.pack(side="right", fill="y")
+        vert_scroll.config(command=self.__canvas.yview)
+        self.__canvas.config(xscrollcommand=horiz_scroll.set,
+                             yscrollcommand=vert_scroll.set)
+        self.__canvas.pack(side="left", fill="both", expand="yes")
         self.__reset_button = ttk.Button(parent, name="reset", text="Reset",
                                          command=self._reset_simulator)
         self.__reset_button.pack()

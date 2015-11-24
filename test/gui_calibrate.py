@@ -30,7 +30,7 @@ class GUICalibrate(Simulator):
                                          borderwidth=2, relief="ridge",
                                          text="Simulator")
         simulator_frame.pack(fill="both", expand="yes")
-        self._initialize_simulator_widgets(simulator_frame, [-40, -40, 40, 20], 10)
+        self._initialize_simulator_widgets(simulator_frame, [-40, -40, 40, 40], 10)
     def _initialize_threads(self):
         virtual = self._robots[0].get_virtual()
         virtual.register("Position", self)
