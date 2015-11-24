@@ -7,7 +7,7 @@ import numpy as np
 from hamster.comm_usb import RobotComm as HamsterComm
 from components.messaging import Signal, Broadcaster
 from components.concurrency import InterruptableThread, Reactor
-from components.geometry import Pose, MobileFrame, direction_vector
+from components.geometry import Pose, MobileFrame, direction_vector, to_vector
 
 _PSD_PORT = 0
 _SERVO_PORT = 1
@@ -176,14 +176,14 @@ class VirtualScanner(MobileFrame):
 
     # Implementation of parent abstract methods
     def get_pose(self):
-        return Pose(np.array[[0], [0]], self.servo_angle)
+        return Pose(to_vector(0, 0), self.servo_angle)
     def reset_pose(self):
         self.servo_angle = self.__initial_servo_angle
 
 class VirtualRobot(InterruptableThread, Broadcaster, MobileFrame):
     """Virtual robot to simulate a hamster robot."""
     def __init__(self, name, update_interval=0.01,
-                 pose=centroid_to_instant_center(Pose(np.array([0, 0]), 0)),
+                 pose=centroid_to_instant_center(Pose(to_vector(0, 0), 0)),
                  servo_angle=90):
         # The Coord of the input pose specifies the centroid of the robot
         super(VirtualRobot, self).__init__(name)
@@ -225,6 +225,12 @@ class VirtualRobot(InterruptableThread, Broadcaster, MobileFrame):
         """
         self._scanner.servo_angle = np.radians(angle)
         self.__broadcast_pose()
+    def get_corners(self):
+        """Returns a tuple of the robot chassis's coordinates as column vectors."""
+        return (to_vector(-0.75, 2.5), to_vector(-0.75, 2), to_vector(-1.5, 2),
+                to_vector(-1.5, -2), to_vector(-0.75, -2), to_vector(-0.75, -2.5),
+                to_vector(2.5, -2.5), to_vector(3, -1.5), to_vector(3.4, -1), to_vector(2.5, -1),
+                to_vector(2.5, 1), to_vector(3.4, 1), to_vector(3, 1.5), to_vector(2.5, 2.5))
 
     # Implementation of parent abstract methods
     def _run(self):

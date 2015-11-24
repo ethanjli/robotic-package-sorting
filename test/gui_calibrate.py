@@ -42,11 +42,10 @@ class GUICalibrate(Simulator):
         simulator_frame.pack(fill="both", expand="yes")
         self._initialize_simulator_widgets(simulator_frame, [-40, -40, 40, 40], 10)
     def _initialize_threads(self):
-        virtual = self._robots[0].get_virtual()
-        virtual.register("Position", self)
-        self._threads[virtual.get_name()] = virtual
+        self._add_virtual_world_threads()
     def _connect_post(self):
         self._reset_simulator()
+        self._add_robots()
     def _generate_virtual_robots(self):
         for i in range(0, self._num_robots):
             yield VirtualRobot("Virtual {}".format(i))

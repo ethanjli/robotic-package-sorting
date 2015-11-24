@@ -117,6 +117,12 @@ class RobotApp(GUIReactor, Broadcaster):
         self.__quit_button = ttk.Button(parent, name="quit", text="Quit",
                                         command=self.quit)
         self.__quit_button.pack(side="left", fill="y")
+    def _add_robot_threads(self):
+        """Add the virtual robots made from the connect button to the list of threads."""
+        for robot in self._robots:
+            virtual = robot.get_virtual()
+            if virtual is not None:
+                self._threads[virtual.get_name()] = virtual
 
     # Connect button callback
     def __connect_all(self):
@@ -194,6 +200,7 @@ class Simulator(RobotApp):
             max y coord of the virtual world that the canvas should be able to display.
             scale: number of pixels per cm of the virtual world.
         """
+        # Set up toolbar
         toolbar_frame = ttk.Frame(parent)
         toolbar_frame.pack(side="top", fill="x")
         self.__reset_button = ttk.Button(toolbar_frame, name="reset", text="Setup",
@@ -203,6 +210,7 @@ class Simulator(RobotApp):
                                        command=self._run_simulator)
         self.__run_button.pack(side="left")
 
+        # Set up canvas
         scaled_bounds = scale_bounds(bounds, scale)
         canvas_frame = ttk.Frame(parent)
         canvas_frame.pack(fill="both", expand="yes")
@@ -222,12 +230,22 @@ class Simulator(RobotApp):
         self.__canvas.pack(side="left", fill="both", expand="yes")
         self.__bounds = bounds
         self.__scale = scale
-    def _initialize_world(self, grid_spacing=1):
+
+        # Set up virtual world
         self._world = VirtualWorld("Virtual World", self.__bounds, self.__canvas,
                                    self.__scale)
-        # TODO: add _world to the list of threads
+    def _initialize_world(self, grid_spacing=1):
         self._world.draw_grid(grid_spacing)
         self._populate_world()
+    def _add_robots(self):
+        """Add all virtual robots to the virtual world.
+        Should probably be called in the implementing subclass's _connect_post method."""
+        for robot in self._robots:
+            self._world.add_robot(robot.get_virtual())
+    def _add_virtual_world_threads(self):
+        """Add the threads representing the virtual world and objects in it."""
+        self._add_robot_threads()
+        self._threads[self._world.get_name()] = self._world
 
     # Reset button callback
     def _reset_simulator(self):
@@ -244,5 +262,5 @@ class Simulator(RobotApp):
 
     # Abstract methods
     def _populate_world(self):
-        """Adds items to the virtual world."""
+        """Adds items to the virtual world, not including robots."""
         pass
