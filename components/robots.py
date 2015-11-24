@@ -1,18 +1,13 @@
 """Classes for management of hamster and virtual robots."""
 import time
 from collections import namedtuple
-import Tkinter as tk
-import tkMessageBox
-import ttk
 
 import numpy as np
 
-from components.util import ordinal
+from hamster.comm_usb import RobotComm as HamsterComm
 from components.messaging import Signal, Broadcaster
-from components.concurrency import InterruptableThread, Reactor, GUIReactor
-from hamster.comm_ble import RobotComm
-
-MIN_RSSI = -50
+from components.concurrency import InterruptableThread, Reactor
+from components.geometry import Pose, MobileFrame, direction_vector
 
 _PSD_PORT = 0
 _SERVO_PORT = 1
@@ -21,7 +16,6 @@ _INSTANT_CENTER_OFFSET = 0.5 # cm
 _ROBOT_SIZE = 4 # cm
 
 # Coord should be a numpy array, Angle and Servo should be in radians
-Pose = namedtuple("Pose", ["Coord", "Angle", "Servo"])
 VirtualState = namedtuple("VirtualState", ["State", "Data"])
 
 class Robot(object):
@@ -80,7 +74,7 @@ class Robot(object):
         if self._virtual is not None:
             self._virtual.rotate(speed)
     def servo(self, angle):
-        """Rotate the PSD scanner's servo to the specified angle.
+        """Rotate the PSD scanner's servo to the specified angle in degrees.
 
         Arguments:
             angle: the target angle. 1 to 180.
@@ -170,27 +164,36 @@ class Mover(Reactor):
 def centroid_to_instant_center(centroid_pose):
     """Converts a pose with Coord as center of mass to Coord as center of rotation."""
     return Pose(centroid_pose.Coord
-                - angle_to_unit_vector(centroid_pose.Angle) * _INSTANT_CENTER_OFFSET,
-                centroid_pose.Angle, centroid_pose.Servo)
-def angle_to_unit_vector(angle):
-    """Returns the unit vector associated with an angle (ccw from +x)."""
-    return np.array([np.cos(angle), np.sin(angle)])
+                - direction_vector(centroid_pose.Angle) * _INSTANT_CENTER_OFFSET,
+                centroid_pose.Angle)
 
-class VirtualRobot(InterruptableThread, Broadcaster):
+class VirtualScanner(MobileFrame):
+    """Models a PSD scanner mounted on a VirtualRobot."""
+    def __init__(self, angle):
+        super(VirtualScanner, self).__init__()
+        self.__initial_servo_angle = angle
+        self.servo_angle = angle
+
+    # Implementation of parent abstract methods
+    def get_pose(self):
+        return Pose(np.array[[0], [0]], self.servo_angle)
+    def reset_pose(self):
+        self.servo_angle = self.__initial_servo_angle
+
+class VirtualRobot(InterruptableThread, Broadcaster, MobileFrame):
     """Virtual robot to simulate a hamster robot."""
     def __init__(self, name, update_interval=0.01,
-                 pose=centroid_to_instant_center(Pose(np.array([0, 0]), 0, 0))):
+                 pose=centroid_to_instant_center(Pose(np.array([0, 0]), 0)),
+                 servo_angle=90):
         # The Coord of the input pose specifies the centroid of the robot
         super(VirtualRobot, self).__init__(name)
+        self.__initial_pose = pose
         self._pose_coord = pose.Coord
         self._pose_angle = pose.Angle
-        self._pose_servo = pose.Servo
+        self._scanner = VirtualScanner(servo_angle)
         self.__update_interval = update_interval
         self.__update_time = time.time()
         self._state = VirtualState("Stopped", None)
-
-    def get_pose(self):
-        return Pose(self._pose_coord, self._pose_angle, self._pose_servo)
 
     def move(self, speed):
         """Move the robot forwards/backwards at the specified speed.
@@ -215,13 +218,13 @@ class VirtualRobot(InterruptableThread, Broadcaster):
         else:
             self._state = VirtualState("Rotating", speed)
     def servo(self, angle):
-        """Rotate the PSD scanner's servo to the specified angle.
+        """Rotate the PSD scanner's servo to the specified angle in degrees.
 
         Arguments:
             angle: the target angle. 1 to 180.
         """
-        self.__update_time = time.time()
-        self._pose_servo = angle
+        self._scanner.servo_angle = np.radians(angle)
+        self.__broadcast_pose()
 
     # Implementation of parent abstract methods
     def _run(self):
@@ -231,142 +234,20 @@ class VirtualRobot(InterruptableThread, Broadcaster):
             self.__update_time = curr_time
             if self._state.State == "Moving":
                 speed = self._state.Data
-                direction = angle_to_unit_vector(self._pose_angle)
+                direction = direction_vector(self._pose_angle)
                 self._pose_coord = self._pose_coord + speed * delta_time * direction
-                self.broadcast(Signal("Position", self.get_name(), self.get_name(),
-                                      self.get_pose()))
+                self.__broadcast_pose()
             elif self._state.State == "Rotating":
                 speed = self._state.Data
-                self._pose_angle = self._pose_angle + speed * delta_time
-                self.broadcast(Signal("Position", self.get_name(), self.get_name(),
-                                      self.get_pose()))
+                self._pose_angle = (self._pose_angle + speed * delta_time) % np.pi
+                self.__broadcast_pose()
             time.sleep(self.__update_interval)
+    def __broadcast_pose(self):
+        self.broadcast(Signal("Pose", self.get_name(), self.get_name(), self.get_pose()))
+    def get_pose(self):
+        return Pose(self._pose_coord, self._pose_angle)
+    def reset_pose(self):
+        self._pose_coord = self.__initial_pose.Coord
+        self._pose_angle = self.__initial_pose.Angle
+        self._scanner.reset_pose()
 
-class RobotApp(GUIReactor, Broadcaster):
-    """Shows a simple window with a hello world message and a quit button."""
-    def __init__(self, name="App", update_interval=10, num_robots=1):
-        super(RobotApp, self).__init__(name, update_interval)
-        self.__hamster_comm = None
-        self._num_robots = num_robots
-        self.__virtual_robot_generator = self._generate_virtual_robots()
-        self._robots = []
-        self._threads = {}
-        self.__parent_frame = None
-        self.__connect_button = None
-        self.__quit_button = None
-
-    # Implementing abstract methods
-    def _run_post(self):
-        for _, thread in self._threads.items():
-            thread.quit()
-        if self.__hamster_comm is None:
-            return
-        for hamster_robot in self.__hamster_comm.robotList:
-            hamster_robot.reset()
-        time.sleep(1.0)
-        self.__hamster_comm.stop()
-
-    # Utility for subclasses
-    def _initialize_robotapp_widgets(self, parent):
-        """Add RobotApp widgets into the specified parent widget.
-
-        Widgets:
-            connect: a button to connect to the robots.
-            quit: a button to exit the application.
-        """
-        self.__parent_frame = parent
-        self.__connect_button = ttk.Button(parent, name="connect", text="Connect",
-                                           command=self.__connect_all)
-        self.__connect_button.pack(side="left", fill="y")
-        self.__quit_button = ttk.Button(parent, name="quit", text="Quit",
-                                        command=self.quit)
-        self.__quit_button.pack(side="left", fill="y")
-
-    # Connect button callback
-    def __connect_all(self):
-        self.__connect_button.config(state="disabled")
-        while len(self._robots) < self._num_robots:
-            if not self.__connect_next():
-                self.quit()
-                return
-        self._initialize_threads()
-        for _, thread in self._threads.items():
-            thread.start()
-        self.__connect_button.config(text="Connected")
-        self._connect_post()
-    def __connect_next(self):
-        while (self.__hamster_comm is None or
-               len(self.__hamster_comm.robotList) <= len(self._robots)):
-            message = "Please connect the {} robot".format(ordinal(len(self._robots) + 1))
-            if not tkMessageBox.askokcancel("Robot Connection Manager", message):
-                return self.__add_virtual_substitute()
-            while self.__hamster_comm is None:
-                if not self.__start_hamster_comm():
-                    return False
-        next_hamster = self.__hamster_comm.robotList[len(self._robots)]
-        self._robots.append(Robot(next_hamster, next(self.__virtual_robot_generator)))
-        return True
-    def __start_hamster_comm(self):
-        self.__hamster_comm = RobotComm(self._num_robots, MIN_RSSI)
-        if not self.__hamster_comm.start():
-            self.__hamster_comm = None
-            if not tkMessageBox.askretrycancel("Robot Connection Manager",
-                                               "Cannot start the robot connection "
-                                               "manager. Please try again."):
-                self.quit()
-                return False
-        return True
-    def __add_virtual_substitute(self):
-        if not tkMessageBox.askokcancel("Robot Connection Manager",
-                                        "Add virtual robot instead?"):
-            return False
-        self._robots.append(Robot(None, next(self.__virtual_robot_generator)))
-        return True
-
-    # Abstract methods
-    def _initialize_threads(self):
-        """Register Reactors into self._threads and set up message-passing."""
-        pass
-    def _connect_post(self):
-        """Executes after robots are connected."""
-        pass
-    def _generate_virtual_robots(self):
-        """A generator to yield the specified number of virtual robots
-        The order of virtual robots generated should correspond to the order of
-        hamster robots added."""
-        for _ in range(0, self._num_robots):
-            yield None
-
-class Simulator(RobotApp):
-    """Displays and simulates the virtual world of a robot."""
-    def __init__(self, name="Simulator", update_interval=10, num_robots=1):
-        super(Simulator, self).__init__(name, update_interval, num_robots)
-        self.__parent_frame = None
-        self.__canvas = None
-        self.__scale = 1
-        self.__reset_button = None
-
-    # Utility for subclasses
-    def _initialize_simulator_widgets(self, parent, bounds, scale=20):
-        """Add RobotSimulator widgets into the specified parent widget.
-
-        Widgets:
-            canvas: canvas displaying the virtual world.
-            reset: a button to reset the virtual world to its initial state.
-            bounds: a 4-tuple of the min x coord, min y coord, max x coord, and
-            max y coord that the canvas should be able to display.
-            scale: number of pixels per cm of the virtual world.
-        """
-        self.__parent_frame = parent
-        self.__canvas = tk.Canvas(parent, name="canvas", bg="white",
-                                  width=scale * (bounds[2] - bounds[0]),
-                                  height=scale * (bounds[3] - bounds[1]))
-        self.__canvas.pack()
-        self.__reset_button = ttk.Button(parent, name="reset", text="Reset",
-                                         command=self._reset_simulator)
-        self.__reset_button.pack()
-
-    # Reset button callback
-    def _reset_simulator(self):
-        """(Re)initializes the simulator to its initial state."""
-        pass

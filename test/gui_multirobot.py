@@ -4,8 +4,9 @@ import Tkinter as tk
 import ttk
 
 from components.messaging import Signal
-from components.robots import RobotApp, Beeper
+from components.robots import Beeper
 from components.sensors import SimpleMonitor, FilteringMonitor
+from components.app import RobotApp
 
 class GUISensors(RobotApp):
     """Reads out robot sensor values."""
