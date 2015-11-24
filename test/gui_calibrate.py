@@ -11,7 +11,7 @@ from components.app import Simulator
 
 class GUICalibrate(Simulator):
     """Reads out robot sensor values."""
-    def __init__(self, name="Sensors GUI", update_interval=10):
+    def __init__(self, name="Calibration GUI", update_interval=10):
         super(GUICalibrate, self).__init__(name, update_interval, 1)
         self._initialize_widgets()
         self._initialize_world(2)

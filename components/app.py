@@ -34,6 +34,7 @@ class GUIReactor(Receiver):
         super(GUIReactor, self).__init__()
         self.__name = name
         self._root = tk.Tk()
+        self._root.title(name)
         self.__initialize_theming()
         self.__update_interval = update_interval
     def __initialize_theming(self):
