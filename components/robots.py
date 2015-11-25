@@ -193,6 +193,8 @@ class VirtualRobot(InterruptableThread, Broadcaster, MobileFrame):
         self._scanner = VirtualScanner(servo_angle)
         self.__update_interval = update_interval
         self.__update_time = time.time()
+        self.move_multiplier = 1
+        self.rotate_multiplier = 1
         self._state = VirtualState("Stopped", None)
 
     def move(self, speed):
@@ -239,13 +241,13 @@ class VirtualRobot(InterruptableThread, Broadcaster, MobileFrame):
             delta_time = curr_time - self.__update_time
             self.__update_time = curr_time
             if self._state.State == "Moving":
-                speed = self._state.Data
+                speed = self._state.Data * self.move_multiplier
                 direction = direction_vector(self._pose_angle)
                 self._pose_coord = self._pose_coord + speed * delta_time * direction
                 self.__broadcast_pose()
             elif self._state.State == "Rotating":
-                speed = self._state.Data
-                self._pose_angle = (self._pose_angle + speed * delta_time) % np.pi
+                speed = self._state.Data * self.rotate_multiplier
+                self._pose_angle = (self._pose_angle + speed * delta_time) % (2 * np.pi)
                 self.__broadcast_pose()
             time.sleep(self.__update_interval)
     def __broadcast_pose(self):

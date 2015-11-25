@@ -112,10 +112,10 @@ class RobotApp(GUIReactor, Broadcaster):
         """
         self.__connect_button = ttk.Button(parent, name="connect", text="Connect",
                                            command=self.__connect_all)
-        self.__connect_button.pack(side="left", fill="y")
+        self.__connect_button.pack(side="top", fill="x")
         self.__quit_button = ttk.Button(parent, name="quit", text="Quit",
                                         command=self.quit)
-        self.__quit_button.pack(side="left", fill="y")
+        self.__quit_button.pack(side="top", fill="x")
     def _add_robot_threads(self):
         """Add the virtual robots made from the connect button to the list of threads."""
         for robot in self._robots:
