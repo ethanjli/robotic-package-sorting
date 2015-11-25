@@ -125,18 +125,26 @@ class RobotApp(GUIReactor, Broadcaster):
     def _add_thread(self, thread):
         """Adds the given thread object to the list of threads managed by the app."""
         self._threads[thread.get_name()] = thread
+    def _start_threads(self):
+        """Starts all threads managed by the app."""
+        for _, thread in self._threads.items():
+            thread.start()
+    def _disable_connect_button(self, new_text):
+        """Disables the connect button and changes the text."""
+        self.__connect_button.config(state="disabled")
+        self.__connect_button.config(text=new_text)
+
 
     # Connect button callback
     def __connect_all(self):
-        self.__connect_button.config(state="disabled")
+        self._disable_connect_button("Connecting")
         while len(self._robots) < self._num_robots:
             if not self.__connect_next():
                 self.quit()
                 return
         self._initialize_threads()
-        for _, thread in self._threads.items():
-            thread.start()
-        self.__connect_button.config(text="Connected")
+        self._start_threads()
+        self._disable_connect_button("Connected")
         self._connect_post()
     def __connect_next(self):
         while (self.__hamster_comm is None or
@@ -248,13 +256,28 @@ class Simulator(RobotApp):
         """Add the threads representing the virtual world and objects in it."""
         self._add_robot_threads()
         self._threads[self._world.get_name()] = self._world
+    def _change_reset_button(self, new_text):
+        """Changes the text (and thus state) of the reset button."""
+        self.__reset_button.config(text=new_text)
 
     # Reset button callback
     def _reset_simulator(self):
         """(Re)initializes the simulator to its initial state."""
         if self.__reset_button.cget("text") == "Setup":
+            self._setup_simulator()
             self.__reset_button.config(text="Reset")
         self._world.reset()
+    def _setup_simulator(self):
+        """Bypasses the app's connect button to instantiate the virtual robots.
+        Will call the _connect_post() method, which should add the virtual robots
+        to the virtual world."""
+        self._disable_connect_button("Simulating")
+        virtual_robot_generator = self._generate_virtual_robots()
+        for _ in range(0, self._num_robots):
+            self._robots.append(Robot(None, next(virtual_robot_generator)))
+        self._initialize_threads()
+        self._start_threads()
+        self._connect_post()
 
     # Run button callback
     def _run_simulator(self):

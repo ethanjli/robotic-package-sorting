@@ -256,4 +256,5 @@ class VirtualRobot(InterruptableThread, Broadcaster, MobileFrame):
         self._pose_coord = self.__initial_pose.Coord
         self._pose_angle = self.__initial_pose.Angle
         self._scanner.reset_pose()
+        self.broadcast(Signal("Pose", self.get_name(), self.get_name(), self.get_pose()))
 

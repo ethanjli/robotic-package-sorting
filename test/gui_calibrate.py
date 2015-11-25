@@ -57,8 +57,8 @@ class GUICalibrate(Simulator):
         self.register("Stop", mover)
         self._add_thread(mover)
     def _connect_post(self):
-        self._reset_simulator()
         self._add_robots()
+        self._change_reset_button("Reset")
         self.__stop_button.config(state="normal")
         self.__rotateccw_button.config(state="normal")
         self.__rotatecw_button.config(state="normal")
