@@ -1,5 +1,5 @@
 """Simulation of the world with virtual world objects."""
-from components.messaging import Broadcaster
+from components.messaging import Signal, Broadcaster
 from components.concurrency import Reactor
 from components.geometry import Pose, Frame, MobileFrame
 from components.geometry import to_vector, vector_to_tuple, vectors_to_flat
@@ -76,8 +76,8 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
         virtual_robot = self._robots[robot_name]
         matrix = compose(self.get_transformation(), transformation(pose))
         transformed = vectors_to_flat(transform_all(matrix, virtual_robot.get_corners()))
-        self._canvas.coords(self._primitives["robotChassis"][robot_name], *transformed)
-        # TODO: pass the new coords along to the Simulator app instead!
+        self.broadcast(Signal("UpdateCoords", self.get_name(), robot_name,
+                              (self._primitives["robotChassis"][robot_name], transformed)))
     def add_wall(self, wall):
         """Adds a wall.
 

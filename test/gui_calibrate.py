@@ -20,8 +20,6 @@ class GUICalibrate(Simulator):
         self._initialize_world(2)
 
     # Implementing abstract methods
-    def _react(self, signal):
-        pass
     def _initialize_widgets(self):
         toolbar_frame = ttk.Frame(self._root, name="toolbarFrame")
         toolbar_frame.pack(side="top", fill="x")

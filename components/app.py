@@ -93,7 +93,6 @@ class RobotApp(GUIReactor, Broadcaster):
 
     # Implementing abstract methods
     def _run_post(self):
-        # TODO: force-quit controller thread
         for _, thread in self._threads.items():
             thread.quit()
         if self.__hamster_comm is None:
@@ -191,7 +190,13 @@ class RobotApp(GUIReactor, Broadcaster):
             yield None
 
 class Simulator(RobotApp):
-    """Displays and simulates the virtual world of a robot."""
+    """Displays and simulates the virtual world of a robot.
+
+    Signals Received:
+        Will react to any Signal of correct name.
+        UpdateCoords: Data should be a 2-tuple of the canvas item specifier and a
+        tuple of the new coords.
+    """
     def __init__(self, name="Simulator", update_interval=10, num_robots=1):
         super(Simulator, self).__init__(name, update_interval, num_robots)
         self.__canvas = None
@@ -257,6 +262,7 @@ class Simulator(RobotApp):
         """Add the threads representing the virtual world and objects in it."""
         self._add_robot_threads()
         self._threads[self._world.get_name()] = self._world
+        self._world.register("UpdateCoords", self)
     def _change_reset_button(self, new_text):
         """Changes the text (and thus state) of the reset button."""
         self.__reset_button.config(text=new_text)
@@ -285,6 +291,11 @@ class Simulator(RobotApp):
         """Runs, pauses, or continues the simulator depending on its state."""
         # TODO: implement
         pass
+
+    # Implementation of parent abstract methods
+    def _react(self, signal):
+        if signal.Name == "UpdateCoords":
+            self.__canvas.coords(signal.Data[0], *signal.Data[1])
 
     # Abstract methods
     def _populate_world(self):

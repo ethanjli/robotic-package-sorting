@@ -63,6 +63,7 @@ class PrimitiveController(Reactor, Broadcaster):
     def _react(self, signal):
         if not signal.Namespace == self._robot.get_name():
             return
+        # TODO: react to Stop signal
         if signal.Name == "Pose":
             self._robot_pose = signal.Data
             if self._target_pose is not None and self.__reached_pose():
@@ -70,7 +71,6 @@ class PrimitiveController(Reactor, Broadcaster):
                                       (self._last_command, self._robot_pose)))
                 self._target_pose = None
                 self._robot.move(0)
-                # TODO: finish
         elif signal.Name == "Motion" and signal.Data.Control == "DeadReckoning":
             command = signal.Data
             if command.Name == "MoveTo":
