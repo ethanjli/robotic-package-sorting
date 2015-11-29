@@ -3,10 +3,13 @@ import sys
 import Tkinter as tk
 import ttk
 
+import numpy as np
+
 from components.messaging import Signal
 from components.robots import VirtualRobot, Mover
 from components.sensors import SimpleMonitor, FilteringMonitor
 from components.world import VirtualWorld, Wall
+from components.control import Motion, PrimitiveController
 from components.app import Simulator
 
 class GUICalibrate(Simulator):
@@ -68,25 +71,25 @@ class GUICalibrate(Simulator):
         # Rotate buttons
         rotate_frame = ttk.Frame(commands_frame, name="rotateFrame")
         rotate_frame.pack(side="left", fill="y")
-        self.__rotateccw_button = ttk.Button(rotate_frame, name="rotateccw",
-                                             text="Rotate CCW", command=self._rotateccw,
-                                             state="disabled")
-        self.__rotateccw_button.pack(side="top", fill="x")
-        self.__rotatecw_button = ttk.Button(rotate_frame, name="rotatecw",
-                                            text="Rotate CW", command=self._rotatecw,
+        self.__rotate90_button = ttk.Button(rotate_frame, name="rotate90",
+                                            text="Rotate 90 deg", command=self._rotate90,
                                             state="disabled")
-        self.__rotatecw_button.pack(side="top", fill="x")
+        self.__rotate90_button.pack(side="top", fill="x")
+        self.__rotate_90_button = ttk.Button(rotate_frame, name="rotate-90",
+                                             text="Rotate -90 deg", command=self._rotate_90,
+                                             state="disabled")
+        self.__rotate_90_button.pack(side="top", fill="x")
         # Move buttons
         move_frame = ttk.Frame(commands_frame, name="moveFrame")
         move_frame.pack(side="left", fill="y")
-        self.__moveforwards_button = ttk.Button(move_frame, name="moveforwards",
-                                                text="Advance", command=self._moveforwards,
-                                                state="disabled")
-        self.__moveforwards_button.pack(side="top", fill="x")
-        self.__movereverse_button = ttk.Button(move_frame, name="movereverse",
-                                               text="Reverse", command=self._movereverse,
-                                               state="disabled")
-        self.__movereverse_button.pack(side="top", fill="x")
+        self.__move5_button = ttk.Button(move_frame, name="move5",
+                                         text="Move 5", command=self._move5,
+                                         state="disabled")
+        self.__move5_button.pack(side="top", fill="x")
+        self.__move_5_button = ttk.Button(move_frame, name="move-5",
+                                          text="Move -5", command=self._move_5,
+                                          state="disabled")
+        self.__move_5_button.pack(side="top", fill="x")
 
         simulator_frame = ttk.LabelFrame(self._root, name="simulatorFrame",
                                          borderwidth=2, relief="ridge",
@@ -95,13 +98,15 @@ class GUICalibrate(Simulator):
         self._initialize_simulator_widgets(simulator_frame, [-40, -40, 40, 40], 10)
     def _initialize_threads(self):
         self._add_virtual_world_threads()
+
         mover = Mover("Mover", self._robots[0])
-        self.register("Advance", mover)
-        self.register("Reverse", mover)
-        self.register("Rotate Left", mover)
-        self.register("Rotate Right", mover)
         self.register("Stop", mover)
         self._add_thread(mover)
+
+        controller = PrimitiveController("MotionController", self._robots[0])
+        controller.register("Moved", self)
+        self.register("Motion", controller)
+        self._add_thread(controller)
     def _connect_post(self):
         self._add_robots()
         self._change_reset_button("Reset")
@@ -114,10 +119,10 @@ class GUICalibrate(Simulator):
         rotate_multipliers.config(state="normal")
         self._rotate_multiplier(None, None, "w")
         self.__stop_button.config(state="normal")
-        self.__rotateccw_button.config(state="normal")
-        self.__rotatecw_button.config(state="normal")
-        self.__moveforwards_button.config(state="normal")
-        self.__movereverse_button.config(state="normal")
+        self.__rotate90_button.config(state="normal")
+        self.__rotate_90_button.config(state="normal")
+        self.__move5_button.config(state="normal")
+        self.__move_5_button.config(state="normal")
     def _generate_virtual_robots(self):
         for i in range(0, self._num_robots):
             yield VirtualRobot("Virtual {}".format(i))
@@ -139,16 +144,20 @@ class GUICalibrate(Simulator):
         self.broadcast(Signal("Stop", self.get_name(), self._robots[0].get_name(), None))
 
     # Rotate button callbacks
-    def _rotateccw(self):
-        self.broadcast(Signal("Rotate Left", self.get_name(), self._robots[0].get_name(), 10))
-    def _rotatecw(self):
-        self.broadcast(Signal("Rotate Right", self.get_name(), self._robots[0].get_name(), 10))
+    def _rotate90(self):
+        command = Motion("RotateBy", "DeadReckoning", None, 10, 0.5 * np.pi)
+        self.broadcast(Signal("Motion", self.get_name(), self._robots[0].get_name(), command))
+    def _rotate_90(self):
+        command = Motion("RotateBy", "DeadReckoning", None, 10, -0.5 * np.pi)
+        self.broadcast(Signal("Motion", self.get_name(), self._robots[0].get_name(), command))
 
     # Move button callbacks
-    def _moveforwards(self):
-        self.broadcast(Signal("Advance", self.get_name(), self._robots[0].get_name(), 10))
-    def _movereverse(self):
-        self.broadcast(Signal("Reverse", self.get_name(), self._robots[0].get_name(), 10))
+    def _move5(self):
+        command = Motion("MoveBy", "DeadReckoning", "Forwards", 10, 5)
+        self.broadcast(Signal("Motion", self.get_name(), self._robots[0].get_name(), command))
+    def _move_5(self):
+        command = Motion("MoveBy", "DeadReckoning", "Backwards", 10, 5)
+        self.broadcast(Signal("Motion", self.get_name(), self._robots[0].get_name(), command))
 
 def main():
     """Runs test."""

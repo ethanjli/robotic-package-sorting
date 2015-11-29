@@ -93,6 +93,7 @@ class RobotApp(GUIReactor, Broadcaster):
 
     # Implementing abstract methods
     def _run_post(self):
+        # TODO: force-quit controller thread
         for _, thread in self._threads.items():
             thread.quit()
         if self.__hamster_comm is None:

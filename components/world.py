@@ -77,6 +77,7 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
         matrix = compose(self.get_transformation(), transformation(pose))
         transformed = vectors_to_flat(transform_all(matrix, virtual_robot.get_corners()))
         self._canvas.coords(self._primitives["robotChassis"][robot_name], *transformed)
+        # TODO: pass the new coords along to the Simulator app instead!
     def add_wall(self, wall):
         """Adds a wall.
 

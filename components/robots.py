@@ -7,7 +7,7 @@ import numpy as np
 from hamster.comm_usb import RobotComm as HamsterComm
 from components.messaging import Signal, Broadcaster
 from components.concurrency import InterruptableThread, Reactor
-from components.geometry import Pose, MobileFrame, direction_vector, to_vector
+from components.geometry import normalize_angle, Pose, MobileFrame, direction_vector, to_vector
 
 _PSD_PORT = 0
 _SERVO_PORT = 1
@@ -247,7 +247,7 @@ class VirtualRobot(InterruptableThread, Broadcaster, MobileFrame):
                 self.__broadcast_pose()
             elif self._state.State == "Rotating":
                 speed = self._state.Data * self.rotate_multiplier
-                self._pose_angle = (self._pose_angle + speed * delta_time) % (2 * np.pi)
+                self._pose_angle = normalize_angle(self._pose_angle + speed * delta_time)
                 self.__broadcast_pose()
             time.sleep(self.__update_interval)
     def __broadcast_pose(self):

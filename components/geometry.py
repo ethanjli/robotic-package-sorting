@@ -8,6 +8,13 @@ import numpy as np
 # Angle should be in radians from the frame's +x axis.
 Pose = namedtuple("Pose", ["Coord", "Angle"])
 
+# Angles
+def normalize_angle(angle):
+    """Converts an angle in radians to an angle whose value is between -pi and pi.
+    This matches the domain of the arctangent function."""
+    positive = angle % (2 * np.pi)
+    return positive - (2 * np.pi * int(positive / np.pi))
+
 # Vector representations
 def to_vector(*values):
     """Converts the input values into a column vector."""
