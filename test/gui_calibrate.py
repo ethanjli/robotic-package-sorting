@@ -6,7 +6,7 @@ import ttk
 import numpy as np
 
 from components.messaging import Signal
-from components.robots import VirtualRobot, Mover
+from components.robots import VirtualRobot
 from components.sensors import SimpleMonitor, FilteringMonitor
 from components.world import VirtualWorld, Wall
 from components.control import Motion, PrimitiveController
@@ -19,7 +19,11 @@ class GUICalibrate(Simulator):
         self._initialize_widgets()
         self._initialize_world(2)
 
-    # Implementing abstract methods
+    # Implementing parent abstract methods
+    def _react_simulator(self, signal):
+        if signal.Name == "Moved":
+            self.__set_motion_buttons_state("normal")
+            self.__pauseresume_button.config(state="disabled", text="Pause")
     def _initialize_widgets(self):
         toolbar_frame = ttk.Frame(self._root, name="toolbarFrame")
         toolbar_frame.pack(side="top", fill="x")
@@ -66,6 +70,9 @@ class GUICalibrate(Simulator):
         self.__stop_button = ttk.Button(stop_frame, name="stop", text="Stop",
                                         command=self._stop, state="disabled")
         self.__stop_button.pack(side="top", fill="x")
+        self.__pauseresume_button = ttk.Button(stop_frame, name="pauseresume", text="Pause",
+                                               command=self._pauseresume, state="disabled")
+        self.__pauseresume_button.pack(side="top", fill="x")
         # Rotate buttons
         rotate_frame = ttk.Frame(commands_frame, name="rotateFrame")
         rotate_frame.pack(side="left", fill="y")
@@ -80,14 +87,14 @@ class GUICalibrate(Simulator):
         # Move buttons
         move_frame = ttk.Frame(commands_frame, name="moveFrame")
         move_frame.pack(side="left", fill="y")
-        self.__move5_button = ttk.Button(move_frame, name="move5",
-                                         text="Move 5", command=self._move5,
+        self.__move4_button = ttk.Button(move_frame, name="move4",
+                                         text="Move 4", command=self._move4,
                                          state="disabled")
-        self.__move5_button.pack(side="top", fill="x")
-        self.__move_5_button = ttk.Button(move_frame, name="move-5",
-                                          text="Move -5", command=self._move_5,
+        self.__move4_button.pack(side="top", fill="x")
+        self.__move_4_button = ttk.Button(move_frame, name="move-4",
+                                          text="Move -4", command=self._move_4,
                                           state="disabled")
-        self.__move_5_button.pack(side="top", fill="x")
+        self.__move_4_button.pack(side="top", fill="x")
 
         simulator_frame = ttk.LabelFrame(self._root, name="simulatorFrame",
                                          borderwidth=2, relief="ridge",
@@ -97,13 +104,12 @@ class GUICalibrate(Simulator):
     def _initialize_threads(self):
         self._add_virtual_world_threads()
 
-        mover = Mover("Mover", self._robots[0])
-        self.register("Stop", mover)
-        self._add_thread(mover)
-
         controller = PrimitiveController("MotionController", self._robots[0])
         controller.register("Moved", self)
         self.register("Motion", controller)
+        self.register("Stop", controller)
+        self.register("Pause", controller)
+        self.register("Resume", controller)
         self._add_thread(controller)
     def _connect_post(self):
         self._add_robots()
@@ -116,11 +122,12 @@ class GUICalibrate(Simulator):
                                                                  """.multipliers""")
         rotate_multipliers.config(state="normal")
         self._rotate_multiplier(None, None, "w")
-        self.__stop_button.config(state="normal")
-        self.__rotate90_button.config(state="normal")
-        self.__rotate_90_button.config(state="normal")
-        self.__move5_button.config(state="normal")
-        self.__move_5_button.config(state="normal")
+        self.__set_motion_buttons_state("normal")
+    def __set_motion_buttons_state(self, new_state):
+        self.__rotate90_button.config(state=new_state)
+        self.__rotate_90_button.config(state=new_state)
+        self.__move4_button.config(state=new_state)
+        self.__move_4_button.config(state=new_state)
     def _generate_virtual_robots(self):
         for i in range(0, self._num_robots):
             yield VirtualRobot("Virtual {}".format(i))
@@ -137,25 +144,49 @@ class GUICalibrate(Simulator):
         if operation == "w":
             robot.rotate_multiplier = float(self.__rotate_multiplier.get())
 
-    # Stop button callback
+    def __broadcast_motion_command(self, command):
+        self.broadcast(Signal("Motion", self.get_name(), self._robots[0].get_name(), command))
+
+    # Stop button callbacks
     def _stop(self):
         self.broadcast(Signal("Stop", self.get_name(), self._robots[0].get_name(), None))
+        self.__set_motion_buttons_state("normal")
+        self.__stop_button.config(state="disabled")
+    def _pauseresume(self):
+        if self.__pauseresume_button.cget("text") == "Pause":
+            self.broadcast(Signal("Pause", self.get_name(), self._robots[0].get_name(), None))
+            self.__pauseresume_button.config(text="Resume")
+        elif self.__pauseresume_button.cget("text") == "Resume":
+            self.broadcast(Signal("Resume", self.get_name(), self._robots[0].get_name(), None))
+            self.__pauseresume_button.config(text="Pause")
 
     # Rotate button callbacks
     def _rotate90(self):
+        self.__set_motion_buttons_state("disabled")
         command = Motion("RotateBy", "DeadReckoning", None, 10, 0.5 * np.pi)
-        self.broadcast(Signal("Motion", self.get_name(), self._robots[0].get_name(), command))
+        self.__broadcast_motion_command(command)
+        self.__pauseresume_button.config(state="normal", text="Pause")
+        self.__stop_button.config(state="normal")
     def _rotate_90(self):
+        self.__set_motion_buttons_state("disabled")
         command = Motion("RotateBy", "DeadReckoning", None, 10, -0.5 * np.pi)
-        self.broadcast(Signal("Motion", self.get_name(), self._robots[0].get_name(), command))
+        self.__broadcast_motion_command(command)
+        self.__pauseresume_button.config(state="normal", text="Pause")
+        self.__stop_button.config(state="normal")
 
     # Move button callbacks
-    def _move5(self):
-        command = Motion("MoveBy", "DeadReckoning", "Forwards", 10, 5)
-        self.broadcast(Signal("Motion", self.get_name(), self._robots[0].get_name(), command))
-    def _move_5(self):
-        command = Motion("MoveBy", "DeadReckoning", "Backwards", 10, 5)
-        self.broadcast(Signal("Motion", self.get_name(), self._robots[0].get_name(), command))
+    def _move4(self):
+        self.__set_motion_buttons_state("disabled")
+        command = Motion("MoveBy", "DeadReckoning", "Forwards", 10, 4)
+        self.__broadcast_motion_command(command)
+        self.__pauseresume_button.config(state="normal", text="Pause")
+        self.__stop_button.config(state="normal")
+    def _move_4(self):
+        self.__set_motion_buttons_state("disabled")
+        command = Motion("MoveBy", "DeadReckoning", "Backwards", 10, 4)
+        self.__broadcast_motion_command(command)
+        self.__pauseresume_button.config(state="normal", text="Pause")
+        self.__stop_button.config(state="normal")
 
 def main():
     """Runs test."""

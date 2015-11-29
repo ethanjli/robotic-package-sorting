@@ -296,8 +296,13 @@ class Simulator(RobotApp):
     def _react(self, signal):
         if signal.Name == "UpdateCoords":
             self.__canvas.coords(signal.Data[0], *signal.Data[1])
+        else:
+            self._react_simulator(signal)
 
     # Abstract methods
     def _populate_world(self):
         """Adds items to the virtual world, not including robots."""
+        pass
+    def _react_simulator(self, signal):
+        """Reacts to any Signals not already caught by the simulator."""
         pass

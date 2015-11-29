@@ -19,14 +19,18 @@ class PrimitiveController(Reactor, Broadcaster):
         Pose: Data should be a Pose. Will update the Controller's records of the
         robot's Pose.
         Motion: Data should be a Motion command.
+        Stop: stops the robot and cancels the active Motion command, if applicable.
+        Pause: stops the robot and pauses the active Motion command, if applicable.
+        Resume: resumes the paused active Motion command, if applicable.
 
     Motion Commands:
         MoveTo: attempt to move in the robot's current direction to the target x-coord, y-coord,
         or x,y-coord. Assumes the robot is already pointed in the correct direction (use the
         RotateTowards command to achieve this). Data should be a 2-tuple of the target x and y
-        coordinates.
-        MoveBy: move by the specified distance in the current direction. Data should be a
-        2-tuple of x and y offsets.
+        coordinates; to target only x-coord, give None as the y-coord; to target only y-coord,
+        give None as the x-coord.
+        MoveBy: move by the specified distance in the current direction. Data should be the
+        distance to move.
         RotateTo: rotate to the specified absolute angle ccw from the +x axis. Data should
         be a positive or negative angle in radians, or a 2-tuple of x and y offsets that
         implies the target angle.
@@ -63,8 +67,20 @@ class PrimitiveController(Reactor, Broadcaster):
     def _react(self, signal):
         if not signal.Namespace == self._robot.get_name():
             return
-        # TODO: react to Stop signal
-        if signal.Name == "Pose":
+        if signal.Name == "Stop":
+            self._robot.move(0)
+            self._target_pose = None
+        elif signal.Name == "Pause":
+            self._robot.move(0)
+        elif (signal.Name == "Resume" and self._target_pose is not None
+              and self._last_command is not None):
+            command = self._last_command
+            if command.Name == "MoveTo" or command.Name == "MoveBy":
+                self.__move_to(command.Direction, command.Speed, self._target_pose.Coord)
+            elif (command.Name == "RotateTo" or command.Name == "RotateBy"
+                  or command.Name == "RotateTowards"):
+                self.__rotate_to(command.Speed, self._target_pose.Angle)
+        elif signal.Name == "Pose":
             self._robot_pose = signal.Data
             if self._target_pose is not None and self.__reached_pose():
                 self.broadcast(Signal("Moved", self.get_name(), self._robot.get_name(),
