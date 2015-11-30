@@ -1,11 +1,14 @@
 """Simulation of the world with virtual world objects."""
-from components.util import within, rgb_to_hex
+from components.util import within, rgb_to_hex, rescale, clip
 from components.messaging import Signal, Broadcaster
 from components.concurrency import Reactor
 from components.geometry import Pose, Frame, MobileFrame
 from components.geometry import to_vector, vector_to_tuple, vectors_to_flat
 from components.geometry import transformation, compose
 from components.geometry import transform, transform_x, transform_y, transform_all
+
+_FLOOR_BLACK = 20
+_FLOOR_WHITE = 90
 
 class VirtualWorld(Reactor, Broadcaster, Frame):
     """Models a virtual world.
@@ -93,11 +96,11 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
         self._primitives["robotChassis"][robot_name] = chassis_shape
         transformed = vectors_to_flat(transform_all(matrix,
                                                     virtual_robot.get_left_floor_corners()))
-        left_floor_shape = self._canvas.create_polygon(*transformed, fill="white", outline="black")
+        left_floor_shape = self._canvas.create_polygon(*transformed, fill="white", outline="white")
         self._primitives["robotFloorLeft"][robot_name] = left_floor_shape
         transformed = vectors_to_flat(transform_all(matrix,
                                                     virtual_robot.get_right_floor_corners()))
-        right_floor_shape = self._canvas.create_polygon(*transformed, fill="white", outline="black")
+        right_floor_shape = self._canvas.create_polygon(*transformed, fill="white", outline="white")
         self._primitives["robotFloorRight"][robot_name] = right_floor_shape
     def __update_robot(self, robot_name, pose):
         virtual_robot = self._robots[robot_name]
@@ -115,12 +118,16 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
                               (self._primitives["robotFloorRight"][robot_name],
                                vectors_to_flat(transformed))))
     def __update_robot_floor(self, robot_name, floor_left, floor_right):
+        left_rescaled = clip(0, 255, rescale(_FLOOR_BLACK, _FLOOR_WHITE, 0, 255, floor_left))
+        left_hex = rgb_to_hex(left_rescaled, left_rescaled, left_rescaled)
         self.broadcast(Signal("UpdateConfig", self.get_name(), robot_name,
                               (self._primitives["robotFloorLeft"][robot_name],
-                               {"fill": rgb_to_hex(floor_left, floor_left, floor_left)})))
+                               {"fill": left_hex, "outline": left_hex})))
+        right_rescaled = clip(0, 255, rescale(_FLOOR_BLACK, _FLOOR_WHITE, 0, 255, floor_right))
+        right_hex = rgb_to_hex(right_rescaled, right_rescaled, right_rescaled)
         self.broadcast(Signal("UpdateConfig", self.get_name(), robot_name,
                               (self._primitives["robotFloorRight"][robot_name],
-                               {"fill": rgb_to_hex(floor_right, floor_right, floor_right)})))
+                               {"fill": right_hex, "outline": right_hex})))
     # Walls
     def add_wall(self, wall):
         """Adds a wall.
@@ -168,12 +175,13 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
         for (_, robot) in self._robots.items():
             robot.reset_pose()
     def get_floor_color(self, coords):
-        """Determines the floor color at the specified coords, given as a column vector."""
+        """Determines the floor color at the specified coords, given as a column vector.
+        Color returned as a grayscale value between 0 and 255, inclusive."""
         for border in self._borders.values():
             if border.in_rectangle(coords):
                 color = border.get_color()
-                return (color, color, color)
-        return (255, 255, 255)
+                return color
+        return _FLOOR_WHITE
 
     # Implementation of parent abstract methods
     def _react(self, signal):
