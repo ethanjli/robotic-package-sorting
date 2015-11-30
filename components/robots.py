@@ -32,6 +32,10 @@ class Robot(object):
             self._hamster.set_io_mode(_SERVO_PORT, 0x08)
 
     # Attribute access
+    def is_real(self):
+        """Checks whether the Robot corresponds to a robot in the real-world.
+        As opposed to a purely simulated one."""
+        return self._hamster is not None
     def get_virtual(self):
         """Returns the VirtualRobot."""
         return self._virtual
@@ -39,7 +43,7 @@ class Robot(object):
         """Returns the name of the VirtualRobot, or else the Robot itself as a string."""
         if self._virtual is not None:
             return self._virtual.get_name()
-        elif self._hamster is not None:
+        elif self.is_real():
             return repr(self)
 
     # Effectors
@@ -49,7 +53,7 @@ class Robot(object):
         Arguments:
             note: the musical note. 0 is silent, 1 - 88 represents piano keys.
         """
-        if self._hamster is not None:
+        if self.is_real():
             self._hamster.set_musical_note(note)
     def move(self, speed):
         """Move the robot forwards/backwards at the specified speed.
@@ -57,7 +61,7 @@ class Robot(object):
         Arguments:
             speed: the movement speed. -100 (backwards) to 100 (forwards).
         """
-        if self._hamster is not None:
+        if self.is_real():
             self._hamster.set_wheel(0, speed)
             self._hamster.set_wheel(1, speed)
         if self._virtual is not None:
@@ -68,7 +72,7 @@ class Robot(object):
         Arguments:
             speed: the movement speed. -100 (clockwise) to 100 (counterclockwise).
         """
-        if self._hamster is not None:
+        if self.is_real():
             self._hamster.set_wheel(0, -speed)
             self._hamster.set_wheel(1, speed)
         if self._virtual is not None:
@@ -79,7 +83,7 @@ class Robot(object):
         Arguments:
             angle: the target angle. 1 to 180.
         """
-        if self._hamster is not None:
+        if self.is_real():
             self._hamster.set_port(_SERVO_PORT, angle)
         if self._virtual is not None:
             self._virtual.servo(angle)
@@ -237,16 +241,13 @@ class VirtualRobot(InterruptableThread, Broadcaster, MobileFrame):
                 to_vector(-1.5, -2), to_vector(-0.75, -2), to_vector(-0.75, -2.5),
                 to_vector(2.5, -2.5), to_vector(3, -1.5), to_vector(3.4, -1), to_vector(2.5, -1.4),
                 to_vector(2.5, 1.4), to_vector(3.4, 1), to_vector(3, 1.5), to_vector(2.5, 2.5))
-    def get_left_floor_center(self):
-        """Returns the center of the robot's left floor sensor as a column vector."""
-        return to_vector(1.75, 0.85)
+    def get_floor_centers(self):
+        """Returns the centers of the robot's left & right floor sensors as column vectors."""
+        return (to_vector(1.75, 0.85), to_vector(1.75, -0.85))
     def get_left_floor_corners(self):
         """Returns a tuple of the corners of the robot's left floor sensor as column vectors."""
         return (to_vector(1.6, 0.6), to_vector(1.6, 1.1),
                 to_vector(1.9, 1.1), to_vector(1.9, 0.6))
-    def get_right_floor_center(self):
-        """Returns the center of the robot's right floor sensor as a column vector."""
-        return to_vector(1.75, -0.85)
     def get_right_floor_corners(self):
         """Returns a tuple of the corners of the robot's right floor sensor as column vectors."""
         return (to_vector(1.6, -0.6), to_vector(1.6, -1.1),

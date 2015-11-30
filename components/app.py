@@ -251,6 +251,8 @@ class Simulator(RobotApp):
         self._world = VirtualWorld("Virtual World", self.__bounds, self.__canvas,
                                    self.__scale)
     def _initialize_world(self, grid_spacing=1):
+        """Initializes the world and calls the _populate_world method to add objects.
+        Should probably be called in the implementing subclass's __init__ method."""
         self._world.draw_grid(grid_spacing)
         self._populate_world()
     def _add_robots(self):
@@ -259,7 +261,8 @@ class Simulator(RobotApp):
         for robot in self._robots:
             self._world.add_robot(robot.get_virtual())
     def _add_virtual_world_threads(self):
-        """Add the threads representing the virtual world and objects in it."""
+        """Add the threads representing the virtual world and objects in it.
+        Should probably be called in the implementing subclass's _initialize_threads method."""
         self._add_robot_threads()
         self._threads[self._world.get_name()] = self._world
         self._world.register("UpdateCoords", self)

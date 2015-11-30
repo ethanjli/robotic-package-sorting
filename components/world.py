@@ -8,7 +8,19 @@ from components.geometry import transformation, compose
 from components.geometry import transform, transform_x, transform_y, transform_all
 
 class VirtualWorld(Reactor, Broadcaster, Frame):
-    """Models a virtual world."""
+    """Models a virtual world.
+
+    Signals Sent:
+        UpdateCoords: Data is a 2-tuple of the canvas item id and a tuple of its new coords.
+        UpdateConfig: Data is a 2-tuple of the canvas item id and a dict of its new config values.
+
+    Signals Received:
+        Will react to any Signal of correct name.
+        Pose: Data should be the Pose of the robot specified in the Namespace.
+        Triggers a redrawing of the robot on the canvas.
+        Floor: Data should be a 2-tuple of the left and right floor colors, given as RGB 3-tuples.
+        Triggers a redrawing of the floor sensors on the canvas.
+    """
     def __init__(self, name, world_bounds, canvas, scale=20):
         super(VirtualWorld, self).__init__(name)
         self.__bounds = world_bounds
@@ -28,6 +40,7 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
         }
 
     # Utility for subclasses
+    # Grid
     def draw_grid(self, grid_spacing=1):
         """Draws a grid of the specified spacing on the canvas.
 
@@ -61,6 +74,7 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
         origin_bounds = (transform_x(matrix, -radius), transform_y(matrix, -radius),
                          transform_x(matrix, radius), transform_y(matrix, radius))
         self._canvas.create_oval(origin_bounds, outline="gray")
+    # Robot
     def add_robot(self, virtual_robot):
         """Adds a robot and sets up the appropriate message-passing connections.
 
@@ -87,34 +101,27 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
         self._primitives["robotFloorRight"][robot_name] = right_floor_shape
     def __update_robot(self, robot_name, pose):
         virtual_robot = self._robots[robot_name]
-        world_matrix = transformation(pose)
-        canvas_matrix = compose(self.get_transformation(), world_matrix)
-        transformed = transform_all(canvas_matrix, virtual_robot.get_corners())
+        matrix = compose(self.get_transformation(), transformation(pose))
+        transformed = transform_all(matrix, virtual_robot.get_corners())
         self.broadcast(Signal("UpdateCoords", self.get_name(), robot_name,
                               (self._primitives["robotChassis"][robot_name],
                                vectors_to_flat(transformed))))
-        self.__update_robot_floor(robot_name, canvas_matrix, world_matrix)
-    def __update_robot_floor(self, robot_name, canvas_matrix, world_matrix):
-        virtual_robot = self._robots[robot_name]
-        transformed = transform_all(canvas_matrix, virtual_robot.get_left_floor_corners())
-        # TODO: get real floor color if a monitor is registered
-        floor = self.get_floor_color(transform(world_matrix,
-                                               virtual_robot.get_left_floor_center()))
+        transformed = transform_all(matrix, virtual_robot.get_left_floor_corners())
         self.broadcast(Signal("UpdateCoords", self.get_name(), robot_name,
                               (self._primitives["robotFloorLeft"][robot_name],
                                vectors_to_flat(transformed))))
-        self.broadcast(Signal("UpdateConfig", self.get_name(), robot_name,
-                              (self._primitives["robotFloorLeft"][robot_name],
-                               {"fill": rgb_to_hex(*floor)})))
-        transformed = transform_all(canvas_matrix, virtual_robot.get_right_floor_corners())
-        floor = self.get_floor_color(transform(world_matrix,
-                                               virtual_robot.get_right_floor_center()))
+        transformed = transform_all(matrix, virtual_robot.get_right_floor_corners())
         self.broadcast(Signal("UpdateCoords", self.get_name(), robot_name,
                               (self._primitives["robotFloorRight"][robot_name],
                                vectors_to_flat(transformed))))
+    def __update_robot_floor(self, robot_name, floor_left, floor_right):
+        self.broadcast(Signal("UpdateConfig", self.get_name(), robot_name,
+                              (self._primitives["robotFloorLeft"][robot_name],
+                               {"fill": rgb_to_hex(floor_left, floor_left, floor_left)})))
         self.broadcast(Signal("UpdateConfig", self.get_name(), robot_name,
                               (self._primitives["robotFloorRight"][robot_name],
-                               {"fill": rgb_to_hex(*floor)})))
+                               {"fill": rgb_to_hex(floor_right, floor_right, floor_right)})))
+    # Walls
     def add_wall(self, wall):
         """Adds a wall.
 
@@ -123,6 +130,14 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
         """
         self._walls[wall.get_id()] = wall
         self.__draw_wall(wall)
+    def __draw_wall(self, wall):
+        wall_id = wall.get_id()
+        (wall_rect, wall_label) = self.__draw_rectangle(wall)
+        self._canvas.itemconfig(wall_rect, fill="white", outline="black", tags=("wall"))
+        self._canvas.itemconfig(wall_label, text=str(wall_id), tags=("wallLabel"))
+        self._primitives["wall"][wall_id] = wall_rect
+        self._primitives["wallLabel"][wall_id] = wall_label
+    # Borders
     def add_border(self, border):
         """Adds a border.
 
@@ -131,20 +146,7 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
         """
         self._borders[border.get_id()] = border
         self.__draw_border(border)
-    def __draw_rectangle(self, rectangle):
-        matrix = self.get_transformation()
-        transformed = vectors_to_flat(transform_all(matrix, rectangle.get_corners()))
-        rect = self._canvas.create_polygon(*transformed)
-        label = self._canvas.create_text(vector_to_tuple(transform(matrix,
-                                                                   rectangle.get_center())))
-        return (rect, label)
-    def __draw_wall(self, wall):
-        wall_id = wall.get_id()
-        (wall_rect, wall_label) = self.__draw_rectangle(wall)
-        self._canvas.itemconfig(wall_rect, fill="white", outline="black", tags=("wall"))
-        self._canvas.itemconfig(wall_label, text=str(wall_id), tags=("wallLabel"))
-        self._primitives["wall"][wall_id] = wall_rect
-        self._primitives["wallLabel"][wall_id] = wall_label
+    # Support
     def __draw_border(self, border):
         border_id = border.get_id()
         (border_rect, border_label) = self.__draw_rectangle(border)
@@ -154,6 +156,13 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
                                 fill="white", tags=("wallLabel"))
         self._primitives["border"][border_id] = border_rect
         self._primitives["borderLabel"][border_id] = border_label
+    def __draw_rectangle(self, rectangle):
+        matrix = self.get_transformation()
+        transformed = vectors_to_flat(transform_all(matrix, rectangle.get_corners()))
+        rect = self._canvas.create_polygon(*transformed)
+        label = self._canvas.create_text(vector_to_tuple(transform(matrix,
+                                                                   rectangle.get_center())))
+        return (rect, label)
     def reset(self):
         """Moves everything in the world to its initial position."""
         for (_, robot) in self._robots.items():
@@ -171,6 +180,8 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
         if signal.Namespace in self._robots:
             if signal.Name == "Pose":
                 self.__update_robot(signal.Namespace, signal.Data)
+            elif signal.Name == "Floor":
+                self.__update_robot_floor(signal.Namespace, signal.Data[0], signal.Data[1])
     def get_pose(self):
         return Pose(to_vector(0, 0), 0)
     def _get_scaling(self):

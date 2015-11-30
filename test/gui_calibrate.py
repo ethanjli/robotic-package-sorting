@@ -7,8 +7,8 @@ import numpy as np
 
 from components.messaging import Signal
 from components.robots import VirtualRobot
-from components.sensors import SimpleMonitor, FilteringMonitor
-from components.world import VirtualWorld, Border
+from components.sensors import FilteringMonitor, VirtualMonitor
+from components.world import Border
 from components.control import Motion, PrimitiveController
 from components.app import Simulator
 
@@ -111,6 +111,13 @@ class GUICalibrate(Simulator):
         self.register("Pause", controller)
         self.register("Resume", controller)
         self._add_thread(controller)
+
+        if self._robots[0].is_real():
+            monitor = FilteringMonitor("Monitor 0", self._robots[0])
+        else:
+            monitor = VirtualMonitor("Monitor 0", self._robots[0], self._world)
+        monitor.register("Floor", self._world)
+        self._add_thread(monitor)
     def _connect_post(self):
         self._add_robots()
         self._change_reset_button("Reset")

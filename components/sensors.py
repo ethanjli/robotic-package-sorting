@@ -5,9 +5,10 @@ import Queue as queue
 
 from numpy import median
 
-from util import moving_average
-from messaging import Signal, Receiver, Broadcaster
-from concurrency import InterruptableThread
+from components.util import moving_average
+from components.messaging import Signal, Receiver, Broadcaster
+from components.concurrency import InterruptableThread, Reactor
+from components.geometry import transformation, transform_all
 
 _WARMUP_TIME = 0.5
 
@@ -163,3 +164,45 @@ class FilteringMonitor(Monitor):
             return
         self.broadcast(Signal("PSD", self.get_name(), self._robot.get_name(),
                               psd_filtered))
+
+class VirtualMonitor(Reactor, Broadcaster):
+    """A Monitor that uses data from the virtual world to simulate sensor data.
+
+    Signals Sent:
+        Sends the same Signals as the Monitor class.
+
+    Signals Received:
+        Receives the same signals as the Monitor class, plus the following Signals.
+        Pose: Data should be the Pose of the robot specified in the Namespace.
+        Triggers an update of all sensor data.
+    """
+    def __init__(self, name, robot, virtual_world):
+        super(VirtualMonitor, self).__init__(name)
+        self._world = virtual_world
+        robot.get_virtual().register("Pose", self)
+        self._robot = robot
+        self._pose = None
+
+    # Implementation of parent abstract methods
+    def _react(self, signal):
+        if not signal.Namespace == self._robot.get_name():
+            return
+        if signal.Name == "Pose":
+            self._pose = signal.Data
+            self._update_floor()
+        elif signal.Name == "Servo":
+            self._robot.servo(signal.Data)
+            self._react_servo_post()
+    def _update_floor(self):
+        matrix = transformation(self._pose)
+        virtual = self._robot.get_virtual()
+        sensor_coords = transform_all(matrix, (virtual.get_floor_centers()))
+        floor_left = self._world.get_floor_color(sensor_coords[0])
+        floor_right = self._world.get_floor_color(sensor_coords[1])
+        self.broadcast(Signal("Floor", self.get_name(), self._robot.get_name(),
+                              (floor_left, floor_right)))
+
+    # Abstract methods
+    def _react_servo_post(self):
+        """Executes after reacting to a Servo signal."""
+        pass
