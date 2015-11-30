@@ -237,10 +237,16 @@ class VirtualRobot(InterruptableThread, Broadcaster, MobileFrame):
                 to_vector(-1.5, -2), to_vector(-0.75, -2), to_vector(-0.75, -2.5),
                 to_vector(2.5, -2.5), to_vector(3, -1.5), to_vector(3.4, -1), to_vector(2.5, -1.4),
                 to_vector(2.5, 1.4), to_vector(3.4, 1), to_vector(3, 1.5), to_vector(2.5, 2.5))
+    def get_left_floor_center(self):
+        """Returns the center of the robot's left floor sensor as a column vector."""
+        return to_vector(1.75, 0.85)
     def get_left_floor_corners(self):
         """Returns a tuple of the corners of the robot's left floor sensor as column vectors."""
         return (to_vector(1.6, 0.6), to_vector(1.6, 1.1),
                 to_vector(1.9, 1.1), to_vector(1.9, 0.6))
+    def get_right_floor_center(self):
+        """Returns the center of the robot's right floor sensor as a column vector."""
+        return to_vector(1.75, -0.85)
     def get_right_floor_corners(self):
         """Returns a tuple of the corners of the robot's right floor sensor as column vectors."""
         return (to_vector(1.6, -0.6), to_vector(1.6, -1.1),

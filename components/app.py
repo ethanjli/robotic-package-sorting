@@ -263,6 +263,7 @@ class Simulator(RobotApp):
         self._add_robot_threads()
         self._threads[self._world.get_name()] = self._world
         self._world.register("UpdateCoords", self)
+        self._world.register("UpdateConfig", self)
     def _change_reset_button(self, new_text):
         """Changes the text (and thus state) of the reset button."""
         self.__reset_button.config(text=new_text)
@@ -296,6 +297,8 @@ class Simulator(RobotApp):
     def _react(self, signal):
         if signal.Name == "UpdateCoords":
             self.__canvas.coords(signal.Data[0], *signal.Data[1])
+        elif signal.Name == "UpdateConfig":
+            self.__canvas.itemconfig(signal.Data[0], **signal.Data[1])
         else:
             self._react_simulator(signal)
 

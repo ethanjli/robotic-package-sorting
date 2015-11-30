@@ -8,7 +8,7 @@ import numpy as np
 from components.messaging import Signal
 from components.robots import VirtualRobot
 from components.sensors import SimpleMonitor, FilteringMonitor
-from components.world import VirtualWorld, Wall
+from components.world import VirtualWorld, Border
 from components.control import Motion, PrimitiveController
 from components.app import Simulator
 
@@ -132,7 +132,14 @@ class GUICalibrate(Simulator):
         for i in range(0, self._num_robots):
             yield VirtualRobot("Virtual {}".format(i))
     def _populate_world(self):
-        self._world.add_wall(Wall(0, 0, 8))
+        self._world.add_border(Border(1, 0, 8.5, 0, 1, 8))
+    def _start_simulator(self):
+        self.__stop_button.config(state="disabled")
+        self.__set_motion_buttons_state("disabled")
+    def _pause_simulator(self):
+        self.broadcast(Signal("Pause", self.get_name(), self._robots[0].get_name(), None))
+    def _resume_simulator(self):
+        self.broadcast(Signal("Resume", self.get_name(), self._robots[0].get_name(), None))
 
     # Multiplier dropdown callbacks
     def _move_multiplier(self, _, dummy, operation):
@@ -156,10 +163,11 @@ class GUICalibrate(Simulator):
         self.__set_motion_buttons_state("normal")
         self.__stop_button.config(state="disabled")
     def _pauseresume(self):
-        if self.__pauseresume_button.cget("text") == "Pause":
+        state = self.__pauseresume_button.cget("text")
+        if state == "Pause":
             self.broadcast(Signal("Pause", self.get_name(), self._robots[0].get_name(), None))
             self.__pauseresume_button.config(text="Resume")
-        elif self.__pauseresume_button.cget("text") == "Resume":
+        elif state == "Resume":
             self.broadcast(Signal("Resume", self.get_name(), self._robots[0].get_name(), None))
             self.__pauseresume_button.config(text="Pause")
 

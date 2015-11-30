@@ -42,10 +42,13 @@ def clip(min_bound, max_bound, value):
         otherwise, value.
     """
     return max(min_bound, min(value, max_bound))
+
+def between(bound_min, bound_max, value):
+    """Checks whether the value is between the min and max values, inclusive."""
+    return bound_min <= value and value <= bound_max
 def within(bound_one, bound_two, value):
     """Checks whether the value is between the two bounds, inclusive."""
-    return ((bound_one >= value and value >= bound_two)
-            or (bound_one <= value and value <= bound_two))
+    return between(bound_one, bound_two, value) or between(bound_two, bound_one, value)
 
 def initialized_coroutine(function):
     """Function decorator to automatically initialize a coroutine."""
