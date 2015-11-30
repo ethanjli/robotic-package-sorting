@@ -19,7 +19,8 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
             "wall": {},
             "wallLabel": {},
             "robotChassis": {},
-            "robotChassisLabel": {}
+            "robotFloorLeft": {},
+            "robotFloorRight": {}
         }
 
     # Utility for subclasses
@@ -72,12 +73,29 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
         chassis_shape = self._canvas.create_polygon(*transformed, fill="gray", outline="black",
                                                     tags=("robotChassis"))
         self._primitives["robotChassis"][robot_name] = chassis_shape
+        transformed = vectors_to_flat(transform_all(matrix,
+                                                    virtual_robot.get_left_floor_corners()))
+        left_floor_shape = self._canvas.create_polygon(*transformed, outline="black")
+        self._primitives["robotFloorLeft"][robot_name] = left_floor_shape
+        transformed = vectors_to_flat(transform_all(matrix,
+                                                    virtual_robot.get_right_floor_corners()))
+        right_floor_shape = self._canvas.create_polygon(*transformed, outline="black")
+        self._primitives["robotFloorRight"][robot_name] = right_floor_shape
     def __update_robot(self, robot_name, pose):
         virtual_robot = self._robots[robot_name]
         matrix = compose(self.get_transformation(), transformation(pose))
         transformed = vectors_to_flat(transform_all(matrix, virtual_robot.get_corners()))
         self.broadcast(Signal("UpdateCoords", self.get_name(), robot_name,
                               (self._primitives["robotChassis"][robot_name], transformed)))
+        transformed = vectors_to_flat(transform_all(matrix,
+                                                    virtual_robot.get_left_floor_corners()))
+        self.broadcast(Signal("UpdateCoords", self.get_name(), robot_name,
+                              (self._primitives["robotFloorLeft"][robot_name], transformed)))
+        transformed = vectors_to_flat(transform_all(matrix,
+                                                    virtual_robot.get_right_floor_corners()))
+        self.broadcast(Signal("UpdateCoords", self.get_name(), robot_name,
+                              (self._primitives["robotFloorRight"][robot_name], transformed)))
+        # TODO: update colors of the floor boxes
     def add_wall(self, wall):
         """Adds a wall.
 

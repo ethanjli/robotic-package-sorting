@@ -7,7 +7,7 @@ import numpy as np
 from hamster.comm_usb import RobotComm as HamsterComm
 from components.messaging import Signal, Broadcaster
 from components.concurrency import InterruptableThread, Reactor
-from components.geometry import normalize_angle, Pose, MobileFrame, direction_vector, to_vector
+from components.geometry import Pose, MobileFrame, direction_vector, to_vector
 
 _PSD_PORT = 0
 _SERVO_PORT = 1
@@ -181,7 +181,11 @@ class VirtualScanner(MobileFrame):
         self.servo_angle = self.__initial_servo_angle
 
 class VirtualRobot(InterruptableThread, Broadcaster, MobileFrame):
-    """Virtual robot to simulate a hamster robot."""
+    """Virtual robot to simulate a hamster robot.
+
+    Signals Broadcast:
+        Pose: broadcasts the current pose of the robot. Angle is not normalized.
+    """
     def __init__(self, name, update_interval=0.01,
                  pose=centroid_to_instant_center(Pose(to_vector(0, 0), 0)),
                  servo_angle=90):
@@ -233,6 +237,14 @@ class VirtualRobot(InterruptableThread, Broadcaster, MobileFrame):
                 to_vector(-1.5, -2), to_vector(-0.75, -2), to_vector(-0.75, -2.5),
                 to_vector(2.5, -2.5), to_vector(3, -1.5), to_vector(3.4, -1), to_vector(2.5, -1.4),
                 to_vector(2.5, 1.4), to_vector(3.4, 1), to_vector(3, 1.5), to_vector(2.5, 2.5))
+    def get_left_floor_corners(self):
+        """Returns a tuple of the corners of the robot's left floor sensor as column vectors."""
+        return (to_vector(1.6, 0.6), to_vector(1.6, 1.1),
+                to_vector(1.9, 1.1), to_vector(1.9, 0.6))
+    def get_right_floor_corners(self):
+        """Returns a tuple of the corners of the robot's right floor sensor as column vectors."""
+        return (to_vector(1.6, -0.6), to_vector(1.6, -1.1),
+                to_vector(1.9, -1.1), to_vector(1.9, -0.6))
 
     # Implementation of parent abstract methods
     def _run(self):
@@ -247,7 +259,7 @@ class VirtualRobot(InterruptableThread, Broadcaster, MobileFrame):
                 self.__broadcast_pose()
             elif self._state.State == "Rotating":
                 speed = self._state.Data * self.rotate_multiplier
-                self._pose_angle = normalize_angle(self._pose_angle + speed * delta_time)
+                self._pose_angle = self._pose_angle + speed * delta_time
                 self.__broadcast_pose()
             time.sleep(self.__update_interval)
     def __broadcast_pose(self):

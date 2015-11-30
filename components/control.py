@@ -3,9 +3,10 @@ from collections import namedtuple
 
 import numpy as np
 
+from components.util import within
 from components.messaging import Signal, Broadcaster
 from components.concurrency import Reactor
-from components.geometry import normalize_angle, direction_vector
+from components.geometry import normalize_angle, positive_angle, direction_vector
 from components.geometry import to_vector, vector_to_tuple, Pose
 
 Motion = namedtuple("Motion", ["Name", "Control", "Direction", "Speed", "Data"])
@@ -53,23 +54,21 @@ class PrimitiveController(Reactor, Broadcaster):
         Moved: sent when the last command has been executed. Data is a 2-tuple of the
         last command and the current pose.
     """
-    def __init__(self, name, robot, xy_epsilon=0.01, angle_epsilon=(np.pi / 360)):
+    def __init__(self, name, robot):
         super(PrimitiveController, self).__init__(name)
         self._robot = robot
         self._robot.get_virtual().register("Pose", self)
         self._robot_pose = robot.get_virtual().get_pose()
+        self._previous_pose = self._robot_pose
         self._target_pose = None
         self._last_command = None
-        self._xy_epsilon = xy_epsilon
-        self._angle_epsilon = angle_epsilon
 
     # Implementation of parent abstract methods
     def _react(self, signal):
         if not signal.Namespace == self._robot.get_name():
             return
         if signal.Name == "Stop":
-            self._robot.move(0)
-            self._target_pose = None
+            self.__finish_motion()
         elif signal.Name == "Pause":
             self._robot.move(0)
         elif (signal.Name == "Resume" and self._target_pose is not None
@@ -81,52 +80,60 @@ class PrimitiveController(Reactor, Broadcaster):
                   or command.Name == "RotateTowards"):
                 self.__rotate_to(command.Speed, self._target_pose.Angle)
         elif signal.Name == "Pose":
-            self._robot_pose = signal.Data
-            if self._target_pose is not None and self.__reached_pose():
-                self.broadcast(Signal("Moved", self.get_name(), self._robot.get_name(),
-                                      (self._last_command, self._robot_pose)))
-                self._target_pose = None
-                self._robot.move(0)
+            self.__update_pose(signal.Data)
         elif signal.Name == "Motion" and signal.Data.Control == "DeadReckoning":
-            command = signal.Data
-            if command.Name == "MoveTo":
-                self._last_command = command
-                self.__move_to(command.Direction, command.Speed, to_vector(command.Data))
-            elif command.Name == "MoveBy":
-                self._last_command = command
-                current_direction = direction_vector(self._robot_pose.Angle)
-                if command.Direction == "Backwards":
-                    current_direction = current_direction * -1
-                target_coords = command.Data * current_direction + self._robot_pose.Coord
-                self.__move_to(command.Direction, command.Speed, target_coords)
-            elif command.Name == "RotateTo":
-                self._last_command = command
-                try:
-                    target_angle = np.arctan2(command.Data[1], command.Data[0])
-                except TypeError:
-                    target_angle = command.Data
-                self.__rotate_to(command.Speed, normalize_angle(target_angle))
-            elif command.Name == "RotateBy":
-                self._last_command = command
-                target_angle = normalize_angle(command.Data + self._robot_pose.Angle)
-                self.__rotate_to(command.Speed, target_angle)
-            elif command.Name == "RotateTowards":
-                self._last_command = command
-                offset = command.Data - self._robot_pose.Coords
-                target_angle = np.arctan2(offset[1], offset[0])
-                if command.Direction == "Backwards":
-                    target_angle = normalize_angle(target_angle + np.pi)
-                self.__rotate_to(command.Speed, target_angle)
+            self.__react_motion_deadreckoning(signal.Data)
+    def __update_pose(self, pose):
+        self._previous_pose = self._robot_pose
+        self._robot_pose = pose
+        if self._target_pose is not None and self.__reached_pose():
+            self.broadcast(Signal("Moved", self.get_name(), self._robot.get_name(),
+                                  (self._last_command, self._robot_pose)))
+            self.__finish_motion()
+    def __finish_motion(self):
+        self._target_pose = None
+        self._robot.move(0)
+    def __react_motion_deadreckoning(self, command):
+        if command.Name == "MoveTo":
+            self._last_command = command
+            self.__move_to(command.Direction, command.Speed, to_vector(command.Data))
+        elif command.Name == "MoveBy":
+            self._last_command = command
+            current_direction = direction_vector(self._robot_pose.Angle)
+            if command.Direction == "Backwards":
+                current_direction = current_direction * -1
+            target_coords = command.Data * current_direction + self._robot_pose.Coord
+            self.__move_to(command.Direction, command.Speed, target_coords)
+        elif command.Name == "RotateTo":
+            self._last_command = command
+            try:
+                target_angle = np.arctan2(command.Data[1], command.Data[0])
+            except TypeError:
+                target_angle = command.Data
+            self.__rotate_to(command.Speed, normalize_angle(target_angle))
+        elif command.Name == "RotateBy":
+            self._last_command = command
+            target_angle = normalize_angle(command.Data + self._robot_pose.Angle)
+            self.__rotate_to(command.Speed, target_angle)
+        elif command.Name == "RotateTowards":
+            self._last_command = command
+            offset = command.Data - self._robot_pose.Coords
+            target_angle = np.arctan2(offset[1], offset[0])
+            if command.Direction == "Backwards":
+                target_angle = normalize_angle(target_angle + np.pi)
+            self.__rotate_to(command.Speed, target_angle)
     def __reached_pose(self):
         if self._target_pose.Angle is not None:
-            return abs(self._target_pose.Angle - self._robot_pose.Angle) < self._angle_epsilon
+            target = self._target_pose.Angle
+            current = self._robot_pose.Angle
+            previous = self._previous_pose.Angle
+            return within(previous, current, target)
         else:
-            target_coords = vector_to_tuple(self._target_pose.Coord)
-            current_coords = vector_to_tuple(self._robot_pose.Coord)
-            within_x = (target_coords[0] is None
-                        or abs(target_coords[0] - current_coords[0]) < self._xy_epsilon)
-            within_y = (target_coords[1] is None
-                        or abs(target_coords[1] - current_coords[1]) < self._xy_epsilon)
+            target = vector_to_tuple(self._target_pose.Coord)
+            current = vector_to_tuple(self._robot_pose.Coord)
+            previous = vector_to_tuple(self._previous_pose.Coord)
+            within_x = target[0] is None or within(previous[0], current[0], target[0])
+            within_y = target[1] is None or within(previous[1], current[1], target[1])
             return within_x and within_y
     def __move_to(self, direction, speed, target):
         if direction == "Forwards":
@@ -135,8 +142,6 @@ class PrimitiveController(Reactor, Broadcaster):
             self._robot.move(-abs(speed))
         self._target_pose = Pose(target, None)
     def __rotate_to(self, speed, target):
-        if normalize_angle(target - self._robot_pose.Angle) > 0:
-            self._robot.rotate(speed)
-        else:
-            self._robot.rotate(-speed)
-        self._target_pose = Pose(to_vector((None, None)), target)
+        delta = normalize_angle(normalize_angle(target) - normalize_angle(self._robot_pose.Angle))
+        self._robot.rotate(speed * np.sign(delta))
+        self._target_pose = Pose(to_vector((None, None)), delta + self._robot_pose.Angle)

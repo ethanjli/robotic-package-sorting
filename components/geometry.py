@@ -10,10 +10,13 @@ Pose = namedtuple("Pose", ["Coord", "Angle"])
 
 # Angles
 def normalize_angle(angle):
-    """Converts an angle in radians to an angle whose value is between -pi and pi.
-    This matches the domain of the arctangent function."""
-    positive = angle % (2 * np.pi)
-    return positive - (2 * np.pi * int(positive / np.pi))
+    """Converts an angle in radians to an angle with -pi < value <= pi.
+    This encompasses the output range of the arctan function."""
+    negative = angle % -(2 * np.pi)
+    return negative - (2 * np.pi * int(negative / np.pi))
+def positive_angle(angle):
+    """Converts an angle in radians to an angle with 0 <= value < 2 * pi."""
+    return angle % (2 * np.pi)
 
 # Vector representations
 def to_vector(*values):

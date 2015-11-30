@@ -41,7 +41,7 @@ class GUICalibrate(Simulator):
         multipliers_frame = ttk.Frame(self.__calibrate_frame, name="multipliersFrame")
         multipliers_frame.pack(side="left", fill="y")
         self.__move_multiplier = tk.StringVar()
-        self.__move_multiplier.set("0.11")
+        self.__move_multiplier.set("0.095")
         self.__move_multiplier.trace("w", self._move_multiplier)
         move_multiplier_frame = ttk.LabelFrame(multipliers_frame, name="move",
                                                borderwidth=2, relief="ridge",
@@ -51,7 +51,7 @@ class GUICalibrate(Simulator):
                      textvariable=self.__move_multiplier, state="disabled",
                      values=[str(0.005 * i) for i in range(2, 41)]).pack()
         self.__rotate_multiplier = tk.StringVar()
-        self.__rotate_multiplier.set("0.056")
+        self.__rotate_multiplier.set("0.052")
         self.__rotate_multiplier.trace("w", self._rotate_multiplier)
         rotate_multiplier_frame = ttk.LabelFrame(multipliers_frame, name="rotate",
                                                  borderwidth=2, relief="ridge",
@@ -146,6 +146,9 @@ class GUICalibrate(Simulator):
 
     def __broadcast_motion_command(self, command):
         self.broadcast(Signal("Motion", self.get_name(), self._robots[0].get_name(), command))
+        self.__set_motion_buttons_state("disabled")
+        self.__pauseresume_button.config(state="normal", text="Pause")
+        self.__stop_button.config(state="normal")
 
     # Stop button callbacks
     def _stop(self):
@@ -162,31 +165,19 @@ class GUICalibrate(Simulator):
 
     # Rotate button callbacks
     def _rotate90(self):
-        self.__set_motion_buttons_state("disabled")
-        command = Motion("RotateBy", "DeadReckoning", None, 10, 0.5 * np.pi)
+        command = Motion("RotateBy", "DeadReckoning", None, 20, 0.5 * np.pi)
         self.__broadcast_motion_command(command)
-        self.__pauseresume_button.config(state="normal", text="Pause")
-        self.__stop_button.config(state="normal")
     def _rotate_90(self):
-        self.__set_motion_buttons_state("disabled")
-        command = Motion("RotateBy", "DeadReckoning", None, 10, -0.5 * np.pi)
+        command = Motion("RotateBy", "DeadReckoning", None, 20, -0.5 * np.pi)
         self.__broadcast_motion_command(command)
-        self.__pauseresume_button.config(state="normal", text="Pause")
-        self.__stop_button.config(state="normal")
 
     # Move button callbacks
     def _move4(self):
-        self.__set_motion_buttons_state("disabled")
-        command = Motion("MoveBy", "DeadReckoning", "Forwards", 10, 4)
+        command = Motion("MoveBy", "DeadReckoning", "Forwards", 20, 4)
         self.__broadcast_motion_command(command)
-        self.__pauseresume_button.config(state="normal", text="Pause")
-        self.__stop_button.config(state="normal")
     def _move_4(self):
-        self.__set_motion_buttons_state("disabled")
-        command = Motion("MoveBy", "DeadReckoning", "Backwards", 10, 4)
+        command = Motion("MoveBy", "DeadReckoning", "Backwards", 20, 4)
         self.__broadcast_motion_command(command)
-        self.__pauseresume_button.config(state="normal", text="Pause")
-        self.__stop_button.config(state="normal")
 
 def main():
     """Runs test."""
