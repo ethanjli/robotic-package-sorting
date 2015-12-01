@@ -7,7 +7,7 @@ from itertools import chain
 
 import numpy as np
 
-from components.util import within
+from components.util import between, within
 
 # Coord should be a numpy array representing a column vector.
 # Angle should be in radians from the frame's +x axis.
@@ -78,6 +78,31 @@ def transform_y(matrix, frame_y):
 def transform_all(matrix, vectors):
     return tuple(transform(matrix, vector) for vector in vectors)
 
+# Geometric primitives
+def find_line_intersection(first_point, first_direction, second_point, second_direction):
+    """Finds the intersection (if any) between two lines defined by their points and directions.
+    Uses the algorithm outlined in Gareth Rees's answer at
+    http://stackoverflow.com/questions/563198
+    """
+    cross_direction = np.cross(first_direction, second_direction, axis=0)
+    difference_point = second_point - first_point
+    if cross_direction == 0:
+        return None # Lines are collinear or parallel
+    second_location = float(np.cross(difference_point, first_direction, axis=0)) / cross_direction
+    first_location = float(np.cross(difference_point, second_direction, axis=0)) / cross_direction
+    return (first_location[0], second_location[0])
+def find_ray_segment_intersection(ray_point, ray_angle, segment_left, segment_right):
+    """Finds the intersection (if any) between the ray and the segment defined by two endpoints.
+    Uses the algorithm outlined in Gareth Rees's answer at
+    http://stackoverflow.com/questions/14307158
+    """
+    intersection = find_line_intersection(ray_point, direction_vector(ray_angle),
+                                          segment_left, segment_right - segment_left)
+    if intersection is None or intersection[0] < 0 or not between(0, 1, intersection[1]):
+        return None
+    else:
+        return intersection[0]
+
 class Frame(object):
     """Mix-in to support coordinate transformations from a frame."""
     def __init__(self):
@@ -87,6 +112,10 @@ class Frame(object):
         """Returns the transformation matrix for efficient composition of transformations."""
         (x_scale, y_scale) = self._get_scaling()
         return transformation(self.get_pose(), x_scale, y_scale)
+    def get_transformation_inverse(self):
+        """Returns the inverse transformation matrix."""
+        (x_scale, y_scale) = self._get_scaling()
+        return transformation_inverse(self.get_pose(), x_scale, y_scale)
 
     # Abstract methods
     def get_pose(self):
@@ -132,7 +161,7 @@ class Rectangle(Frame):
 
     def in_rectangle(self, coords):
         """Checks whether the coordinate, given as a column vector, is in the Rectangle."""
-        transformed = transform(transformation_inverse(self.get_pose()), coords)
+        transformed = transform(self.get_transformation_inverse(), coords)
         point = vector_to_tuple(transformed)
         return (within(self.__bounds[0], self.__bounds[2], point[0])
                 and within(self.__bounds[1], self.__bounds[3], point[1]))
@@ -143,19 +172,26 @@ class Rectangle(Frame):
         To identify the nearest side, uses the algorithm outlined in Raymond Manzoni's answer at
         http://math.stackexchange.com/questions/194550/
         """
-        transformed = transform(transformation_inverse(self.get_pose()), coords)
+        transformed = transform(self.get_transformation_inverse(), coords)
         point = vector_to_tuple(transformed)
         slope = abs(float(self.__bounds[3] - self.__bounds[1])
                     / (self.__bounds[2] - self.__bounds[0]))
         if point[1] >= slope * abs(point[0]):
-            print("North")
             return self._sides["North"]
         elif point[1] <= -slope * abs(point[0]):
-            print("South")
             return self._sides["South"]
         elif slope * point[0] > abs(point[1]):
-            print("East")
             return self._sides["East"]
         elif slope * point[0] < -abs(point[1]):
-            print("West")
             return self._sides["West"]
+    def get_proximity_distance(self, ray_point, ray_angle):
+        """Returns the distance to the Rectangle from the given ray, if the ray intersects.
+        The ray should be given in the parent frame as a column vector and an angle."""
+        matrix = self.get_transformation()
+        distances = tuple(find_ray_segment_intersection(ray_point, ray_angle,
+                                                        *transform_all(matrix, side))
+                          for side in self._sides.values())
+        try:
+            return min(distance for distance in distances if distance is not None)
+        except ValueError:
+            return None
