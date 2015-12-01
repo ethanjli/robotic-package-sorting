@@ -85,6 +85,7 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
             virtual_robot: a VirtualRobot.
         """
         virtual_robot.register("Pose", self)
+        virtual_robot.register("ResetPose", self)
         self._robots[virtual_robot.get_name()] = virtual_robot
         self.__draw_robot(virtual_robot)
     def __draw_robot(self, virtual_robot):
@@ -186,7 +187,7 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
     # Implementation of parent abstract methods
     def _react(self, signal):
         if signal.Namespace in self._robots:
-            if signal.Name == "Pose":
+            if signal.Name == "Pose" or signal.Name == "ResetPose":
                 self.__update_robot(signal.Namespace, signal.Data)
             elif signal.Name == "Floor":
                 self.__update_robot_floor(signal.Namespace, signal.Data[0], signal.Data[1])

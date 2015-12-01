@@ -9,8 +9,24 @@ from components.messaging import Signal
 from components.robots import VirtualRobot
 from components.sensors import FilteringMonitor, VirtualMonitor
 from components.world import Border
-from components.control import Motion, PrimitiveController
+from components.control import Motion, PrimitiveController, SimplePrimitivePlanner
 from components.app import Simulator
+
+class SquarePlanner(SimplePrimitivePlanner):
+    """Plans a square motion path for the robot."""
+    def _generate_commands(self):
+        targets = ((3.5, 0), (3.5, None), (3.5, 3.5), (None, 3.5),
+                   (0, 3.5), (0, None), (0, 0), (None, 0))
+        while True:
+            corner_index = 0
+            resetting = False
+            while not resetting:
+                if corner_index % 2 == 0:
+                    motion = Motion("RotateTowards", "DeadReckoning", 1, 20, targets[corner_index])
+                else:
+                    motion = Motion("MoveTo", "DeadReckoning", 1, 20, targets[corner_index])
+                resetting = not (yield motion)
+                corner_index = (corner_index + 1) % len(targets)
 
 class GUICalibrate(Simulator):
     """Reads out robot sensor values."""
@@ -112,6 +128,14 @@ class GUICalibrate(Simulator):
         self.register("Resume", controller)
         self._add_thread(controller)
 
+        planner = SquarePlanner("SquarePlanner", self._robots[0])
+        planner.register("Motion", controller)
+        planner.register("Stop", controller)
+        controller.register("Moved", planner)
+        self.register("Start", planner)
+        self.register("Reset", planner)
+        self._add_thread(planner)
+
         if self._robots[0].is_real():
             monitor = FilteringMonitor("Monitor 0", self._robots[0])
         else:
@@ -121,6 +145,7 @@ class GUICalibrate(Simulator):
     def _connect_post(self):
         self._add_robots()
         self._change_reset_button("Reset")
+        self._enable_start_button()
         movement_multipliers = self.__calibrate_frame.nametowidget("""multipliersFrame.move"""
                                                                    """.multipliers""")
         movement_multipliers.config(state="normal")
@@ -143,10 +168,14 @@ class GUICalibrate(Simulator):
     def _start_simulator(self):
         self.__stop_button.config(state="disabled")
         self.__set_motion_buttons_state("disabled")
+        self.broadcast(Signal("Start", self.get_name(), self._robots[0].get_name(), None))
     def _pause_simulator(self):
         self.broadcast(Signal("Pause", self.get_name(), self._robots[0].get_name(), None))
     def _resume_simulator(self):
         self.broadcast(Signal("Resume", self.get_name(), self._robots[0].get_name(), None))
+    def _reset_simulator_post(self):
+        self.broadcast(Signal("Reset", self.get_name(), self._robots[0].get_name(), None))
+
 
     # Multiplier dropdown callbacks
     def _move_multiplier(self, _, dummy, operation):
@@ -188,10 +217,10 @@ class GUICalibrate(Simulator):
 
     # Move button callbacks
     def _move4(self):
-        command = Motion("MoveBy", "DeadReckoning", "Forwards", 20, 4)
+        command = Motion("MoveBy", "DeadReckoning", 1, 20, 4)
         self.__broadcast_motion_command(command)
     def _move_4(self):
-        command = Motion("MoveBy", "DeadReckoning", "Backwards", 20, 4)
+        command = Motion("MoveBy", "DeadReckoning", -1, 20, 4)
         self.__broadcast_motion_command(command)
 
 def main():

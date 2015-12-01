@@ -73,7 +73,7 @@ def moving_average(max_samples, averager=unweighted_mean):
 
     Sending:
         Send values into moving_average to add them to the signal.
-        Send None into mvoing_average to reset the signal.
+        Send None into moving_average to reset the signal.
 
     Yielding:
         None: if the filter has not yet collected max_samples samples.

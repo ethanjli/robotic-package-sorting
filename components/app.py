@@ -203,6 +203,7 @@ class Simulator(RobotApp):
         self.__bounds = None
         self.__scale = 1
         self.__reset_button = None
+        self.__run_button = None
         self._world = None
 
     # Utility for subclasses
@@ -220,10 +221,10 @@ class Simulator(RobotApp):
         toolbar_frame = ttk.Frame(parent)
         toolbar_frame.pack(side="top", fill="x")
         self.__reset_button = ttk.Button(toolbar_frame, name="reset", text="Setup",
-                                         command=self._reset_simulator)
+                                         command=self.__reset_simulator)
         self.__reset_button.pack(side="left")
         self.__run_button = ttk.Button(toolbar_frame, name="run", text="Start",
-                                       command=self._run_simulator)
+                                       command=self.__run_simulator, state="disabled")
         self.__run_button.pack(side="left")
 
         # Set up canvas
@@ -270,15 +271,23 @@ class Simulator(RobotApp):
     def _change_reset_button(self, new_text):
         """Changes the text (and thus state) of the reset button."""
         self.__reset_button.config(text=new_text)
+    def _enable_start_button(self):
+        """Enables the simulation start button.
+        Should probably be called in the implementing subclass's _connect_post method."""
+        self.__run_button.config(state="normal")
 
     # Reset button callback
-    def _reset_simulator(self):
+    def __reset_simulator(self):
         """(Re)initializes the simulator to its initial state."""
-        if self.__reset_button.cget("text") == "Setup":
-            self._setup_simulator()
+        state = self.__reset_button.cget("text")
+        if state == "Setup":
+            self.__setup_simulator()
             self.__reset_button.config(text="Reset")
         self._world.reset()
-    def _setup_simulator(self):
+        self.__run_button.config(text="Start")
+        if not state == "Setup":
+            self._reset_simulator_post()
+    def __setup_simulator(self):
         """Bypasses the app's connect button to instantiate the virtual robots.
         Will call the _connect_post() method, which should add the virtual robots
         to the virtual world."""
@@ -291,10 +300,18 @@ class Simulator(RobotApp):
         self._connect_post()
 
     # Run button callback
-    def _run_simulator(self):
+    def __run_simulator(self):
         """Runs, pauses, or continues the simulator depending on its state."""
-        # TODO: implement
-        pass
+        state = self.__run_button.cget("text")
+        if state == "Start":
+            self.__run_button.config(text="Pause")
+            self._start_simulator()
+        elif state == "Pause":
+            self.__run_button.config(text="Resume")
+            self._pause_simulator()
+        elif state == "Resume":
+            self.__run_button.config(text="Pause")
+            self._resume_simulator()
 
     # Implementation of parent abstract methods
     def _react(self, signal):
@@ -306,6 +323,19 @@ class Simulator(RobotApp):
             self._react_simulator(signal)
 
     # Abstract methods
+    def _reset_simulator_post(self):
+        """Called after the simulator's world is reset.
+        Use this to reset the state of planners, etc."""
+        pass
+    def _start_simulator(self):
+        """Starts simulation execution. Called once."""
+        pass
+    def _pause_simulator(self):
+        """Pauses simulation execution."""
+        pass
+    def _resume_simulator(self):
+        """Resumes paused simulation execution."""
+        pass
     def _populate_world(self):
         """Adds items to the virtual world, not including robots."""
         pass

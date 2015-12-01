@@ -180,21 +180,22 @@ class VirtualMonitor(Reactor, Broadcaster):
         super(VirtualMonitor, self).__init__(name)
         self._world = virtual_world
         robot.get_virtual().register("Pose", self)
+        robot.get_virtual().register("ResetPose", self)
         self._robot = robot
-        self._pose = None
+        self._robot_pose = robot.get_virtual().get_pose()
 
     # Implementation of parent abstract methods
     def _react(self, signal):
         if not signal.Namespace == self._robot.get_name():
             return
-        if signal.Name == "Pose":
-            self._pose = signal.Data
+        if signal.Name == "Pose" or signal.Name == "ResetPose":
+            self._robot_pose = signal.Data
             self._update_floor()
         elif signal.Name == "Servo":
             self._robot.servo(signal.Data)
             self._react_servo_post()
     def _update_floor(self):
-        matrix = transformation(self._pose)
+        matrix = transformation(self._robot_pose)
         virtual = self._robot.get_virtual()
         sensor_coords = transform_all(matrix, (virtual.get_floor_centers()))
         floor_left = self._world.get_floor_color(sensor_coords[0])

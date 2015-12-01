@@ -189,6 +189,7 @@ class VirtualRobot(InterruptableThread, Broadcaster, MobileFrame):
 
     Signals Broadcast:
         Pose: broadcasts the current pose of the robot. Angle is not normalized.
+        ResetPose: broadcasts the current pose of the robot as it is (re)initialized.
     """
     def __init__(self, name, update_interval=0.01,
                  pose=centroid_to_instant_center(Pose(to_vector(0, 0), 0)),
@@ -277,5 +278,5 @@ class VirtualRobot(InterruptableThread, Broadcaster, MobileFrame):
         self._pose_coord = self.__initial_pose.Coord
         self._pose_angle = self.__initial_pose.Angle
         self._scanner.reset_pose()
-        self.broadcast(Signal("Pose", self.get_name(), self.get_name(), self.get_pose()))
+        self.broadcast(Signal("ResetPose", self.get_name(), self.get_name(), self.get_pose()))
 
