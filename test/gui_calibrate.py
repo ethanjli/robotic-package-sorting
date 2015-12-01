@@ -15,8 +15,8 @@ from components.app import Simulator
 class SquarePlanner(SimplePrimitivePlanner):
     """Plans a square motion path for the robot."""
     def _generate_commands(self):
-        targets = ((3.5, 0), (3.5, None), (3.5, 3.5), (None, 3.5),
-                   (0, 3.5), (0, None), (0, 0), (None, 0))
+        targets = ((3.5, 0), (3.5, None), (3.5, 4), (None, 4),
+                   (-0.5, 4), (-0.5, None), (-0.5, 0), (None, 0))
         while True:
             corner_index = 0
             resetting = False
