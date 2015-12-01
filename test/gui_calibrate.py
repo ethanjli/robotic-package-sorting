@@ -8,7 +8,7 @@ import numpy as np
 from components.messaging import Signal
 from components.robots import VirtualRobot
 from components.sensors import FilteringMonitor, VirtualMonitor
-from components.world import Border
+from components.world import Border, Wall
 from components.control import Motion, PrimitiveController, SimplePrimitivePlanner
 from components.app import Simulator
 
@@ -164,7 +164,8 @@ class GUICalibrate(Simulator):
         for i in range(0, self._num_robots):
             yield VirtualRobot("Virtual {}".format(i))
     def _populate_world(self):
-        self._world.add_border(Border(1, 0, 8.5, 0, 1, 8))
+        self._world.add_border(Border(0, 0, 2.5, 0, 1, 8))
+        self._world.add_wall(Wall(0, 0, 12, 20))
     def _start_simulator(self):
         self.__stop_button.config(state="disabled")
         self.__set_motion_buttons_state("disabled")
@@ -179,11 +180,11 @@ class GUICalibrate(Simulator):
 
     # Multiplier dropdown callbacks
     def _move_multiplier(self, _, dummy, operation):
-        robot = self._robots[0].get_virtual()
+        robot = self._robots[0]
         if operation == "w":
             robot.move_multiplier = float(self.__move_multiplier.get())
     def _rotate_multiplier(self, _, dummy, operation):
-        robot = self._robots[0].get_virtual()
+        robot = self._robots[0]
         if operation == "w":
             robot.rotate_multiplier = float(self.__rotate_multiplier.get())
 

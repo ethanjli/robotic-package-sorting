@@ -257,10 +257,10 @@ class Simulator(RobotApp):
         self._world.draw_grid(grid_spacing)
         self._populate_world()
     def _add_robots(self):
-        """Add all virtual robots to the virtual world.
+        """Add all robots to the virtual world.
         Should probably be called in the implementing subclass's _connect_post method."""
         for robot in self._robots:
-            self._world.add_robot(robot.get_virtual())
+            self._world.add_robot(robot)
     def _add_virtual_world_threads(self):
         """Add the threads representing the virtual world and objects in it.
         Should probably be called in the implementing subclass's _initialize_threads method."""

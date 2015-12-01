@@ -191,17 +191,28 @@ class VirtualMonitor(Reactor, Broadcaster):
         if signal.Name == "Pose" or signal.Name == "ResetPose":
             self._robot_pose = signal.Data
             self._update_floor()
+            self._update_proximity()
         elif signal.Name == "Servo":
             self._robot.servo(signal.Data)
             self._react_servo_post()
     def _update_floor(self):
         matrix = transformation(self._robot_pose)
         virtual = self._robot.get_virtual()
-        sensor_coords = transform_all(matrix, (virtual.get_floor_centers()))
+        sensor_coords = transform_all(matrix, virtual.get_floor_centers())
         floor_left = self._world.get_floor_color(sensor_coords[0])
         floor_right = self._world.get_floor_color(sensor_coords[1])
         self.broadcast(Signal("Floor", self.get_name(), self._robot.get_name(),
                               (floor_left, floor_right)))
+    def _update_proximity(self):
+        world = self._world
+        matrix = transformation(self._robot_pose)
+        virtual = self._robot.get_virtual()
+        sensor_coords = transform_all(matrix, virtual.get_proximity_coords())
+        angle = self._robot_pose.Angle
+        prox_left = self._robot.to_prox_ir(world.get_proximity_distance(sensor_coords[0], angle))
+        prox_right = self._robot.to_prox_ir(world.get_proximity_distance(sensor_coords[1], angle))
+        self.broadcast(Signal("Proximity", self.get_name(), self._robot.get_name(),
+                              (prox_left, prox_right)))
 
     # Abstract methods
     def _react_servo_post(self):

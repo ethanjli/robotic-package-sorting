@@ -5,6 +5,7 @@ from collections import namedtuple
 import numpy as np
 
 from hamster.comm_usb import RobotComm as HamsterComm
+from components.util import rescale, clip, get_interpolator
 from components.messaging import Signal, Broadcaster
 from components.concurrency import InterruptableThread, Reactor
 from components.geometry import Pose, MobileFrame, direction_vector, to_vector
@@ -19,10 +20,20 @@ _ROBOT_SIZE = 4 # cm
 VirtualState = namedtuple("VirtualState", ["State", "Data"])
 
 class Robot(object):
-    """Proxy for a Hamster robot and/or a simulated version of the robot."""
+    """Proxy for a Hamster robot and/or a simulated version of the robot.
+    Public attributes calibrate virtual robot sensors and effectors against real values."""
     def __init__(self, hamster_robot=None, virtual_robot=None):
         self._hamster = hamster_robot
         self._virtual = virtual_robot
+        self.move_multiplier = 0.095 # speed multiplier
+        self.rotate_multiplier = 0.052 # speed multiplier
+        self.floor_black = 10 # the blackest measurable value
+        self.floor_white = 90 # the whitest measurable value
+        prox_profile = ((20, 16), (24, 14), (30, 12), (35, 10), (46, 8), (57, 6),
+                        (72, 4), (80, 3), (84, 2))
+        self.prox_profile_interp = get_interpolator(prox_profile, np.nan, 2)
+        prox_profile_inverse = tuple((dist, prox) for (prox, dist) in reversed(prox_profile))
+        self.prox_profile_inverse_interp = get_interpolator(prox_profile_inverse, 84, np.nan)
 
     # Initialization
     def init_psd_scanner(self):
@@ -65,7 +76,7 @@ class Robot(object):
             self._hamster.set_wheel(0, speed)
             self._hamster.set_wheel(1, speed)
         if self._virtual is not None:
-            self._virtual.move(speed)
+            self._virtual.move(self.to_virtual_move_speed(speed))
     def rotate(self, speed):
         """Rotate the robot counterclockwise/clockwise at the specified speed.
 
@@ -76,7 +87,7 @@ class Robot(object):
             self._hamster.set_wheel(0, -speed)
             self._hamster.set_wheel(1, speed)
         if self._virtual is not None:
-            self._virtual.rotate(speed)
+            self._virtual.rotate(self.to_virtual_rotate_speed(speed))
     def servo(self, angle):
         """Rotate the PSD scanner's servo to the specified angle in degrees.
 
@@ -110,6 +121,34 @@ class Robot(object):
             The PSD value.
         """
         return self._hamster.get_port(_PSD_PORT)
+
+    # Calibration
+    def to_virtual_move_speed(self, real_move_speed):
+        """Calculate the virtual move speed for the given real move speed."""
+        return real_move_speed * self.move_multiplier
+    def to_virtual_rotate_speed(self, real_rotate_speed):
+        """Calculate the virtual rotate speed for the given real rotate speed."""
+        return real_rotate_speed * self.rotate_multiplier
+    def to_relative_whiteness(self, color):
+        """Calculate the relative whiteness within the measurable color scale.
+        Output is a value between 0 and 255, where 0 corresponds to the blackest
+        measurable value and 255 corresponds to the whitest measurable value."""
+        return clip(0, 255, rescale(self.floor_black, self.floor_white, 0, 255, color))
+    def to_prox_distance(self, proximity):
+        """Calculate the distance from the front of the robot."""
+        distance = self.prox_profile_interp(proximity)
+        if np.isnan(distance):
+            return None
+        else:
+            return distance
+    def to_prox_ir(self, distance):
+        """Calculate the distance from the front of the robot."""
+        proximity = self.prox_profile_inverse_interp(distance)
+        if np.isnan(proximity):
+            return None
+        else:
+            return proximity
+
 class Beeper(Reactor):
     """Beeps. Useful for notifications.
 
@@ -202,8 +241,6 @@ class VirtualRobot(InterruptableThread, Broadcaster, MobileFrame):
         self._scanner = VirtualScanner(servo_angle)
         self.__update_interval = update_interval
         self.__update_time = time.time()
-        self.move_multiplier = 1
-        self.rotate_multiplier = 1
         self._state = VirtualState("Stopped", None)
 
     def move(self, speed):
@@ -236,12 +273,14 @@ class VirtualRobot(InterruptableThread, Broadcaster, MobileFrame):
         """
         self._scanner.servo_angle = np.radians(angle)
         self.__broadcast_pose()
+    # Chassis
     def get_corners(self):
         """Returns a tuple of the robot chassis's coordinates as column vectors."""
-        return (to_vector(-0.75, 2.5), to_vector(-0.75, 2), to_vector(-1.5, 2),
-                to_vector(-1.5, -2), to_vector(-0.75, -2), to_vector(-0.75, -2.5),
-                to_vector(2.5, -2.5), to_vector(3, -1.5), to_vector(3.4, -1), to_vector(2.5, -1.4),
-                to_vector(2.5, 1.4), to_vector(3.4, 1), to_vector(3, 1.5), to_vector(2.5, 2.5))
+        return (to_vector(-0.75, 2.1), to_vector(-0.75, 1.7), to_vector(-1.5, 1.7),
+                to_vector(-1.5, -1.7), to_vector(-0.75, -1.7), to_vector(-0.75, -2.1),
+                to_vector(2.5, -2.1), to_vector(3, -1.5), to_vector(3.4, -1), to_vector(2.5, -1.4),
+                to_vector(2.5, 1.4), to_vector(3.4, 1), to_vector(3, 1.5), to_vector(2.5, 2.1))
+    # Floor sensors
     def get_floor_centers(self):
         """Returns the centers of the robot's left & right floor sensors as column vectors."""
         return (to_vector(1.75, 0.85), to_vector(1.75, -0.85))
@@ -253,6 +292,10 @@ class VirtualRobot(InterruptableThread, Broadcaster, MobileFrame):
         """Returns a tuple of the corners of the robot's right floor sensor as column vectors."""
         return (to_vector(1.6, -0.6), to_vector(1.6, -1.1),
                 to_vector(1.9, -1.1), to_vector(1.9, -0.6))
+    # Proximity IR sensors
+    def get_proximity_coords(self):
+        """Returns the locations of the robot's left & right proximity sensors as column vectors."""
+        return (to_vector(2.5, 1.7), to_vector(2.5, -1.7))
 
     # Implementation of parent abstract methods
     def _run(self):
@@ -261,12 +304,12 @@ class VirtualRobot(InterruptableThread, Broadcaster, MobileFrame):
             delta_time = curr_time - self.__update_time
             self.__update_time = curr_time
             if self._state.State == "Moving":
-                speed = self._state.Data * self.move_multiplier
+                speed = self._state.Data
                 direction = direction_vector(self._pose_angle)
                 self._pose_coord = self._pose_coord + speed * delta_time * direction
                 self.__broadcast_pose()
             elif self._state.State == "Rotating":
-                speed = self._state.Data * self.rotate_multiplier
+                speed = self._state.Data
                 self._pose_angle = self._pose_angle + speed * delta_time
                 self.__broadcast_pose()
             time.sleep(self.__update_interval)

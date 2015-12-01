@@ -1,8 +1,13 @@
-"""Support for 2-D geometric operations."""
+"""Support for 2-D geometric operations.
+Mathematics for poses, frames, and coordinate transformations derived from Peter Corke's
+"Robotics, Vision, and Control: Fundamental Algorithms in MATLAB".
+"""
 from collections import namedtuple
 from itertools import chain
 
 import numpy as np
+
+from components.util import within
 
 # Coord should be a numpy array representing a column vector.
 # Angle should be in radians from the frame's +x axis.
@@ -46,8 +51,16 @@ def transformation(pose, x_scale=1, y_scale=1):
     """Returns the homogeneous transformation matrix of a frame to its reference."""
     scale_mat = np.array([[x_scale, 0], [0, y_scale]])
     rot_mat = rotation_matrix(pose.Angle)
+    rot_scale_mat = np.dot(scale_mat, rot_mat)
     transl = pose.Coord
-    return np.vstack([np.hstack([np.dot(scale_mat, rot_mat), transl]), [0, 0, 1]])
+    return np.vstack([np.hstack([rot_scale_mat, transl]), [0, 0, 1]])
+def transformation_inverse(pose, x_scale=1, y_scale=1):
+    """Returns the homogeneous transformation matrix into a frame from its reference."""
+    scale_mat = np.array([[x_scale, 0], [0, y_scale]])
+    rot_mat = rotation_matrix(pose.Angle)
+    rot_scale_mat = np.dot(scale_mat, rot_mat).transpose()
+    transl = pose.Coord
+    return np.vstack([np.hstack([rot_scale_mat, -1 * np.dot(rot_scale_mat, transl)]), [0, 0, 1]])
 def compose(transformation_one, transformation_two):
     """Returns the transformation that is the composition of the two inputs."""
     return np.dot(transformation_one, transformation_two)
@@ -89,3 +102,60 @@ class MobileFrame(Frame):
 
     def reset_pose(self):
         """Resets the frame to its initial pose."""
+
+class Rectangle(Frame):
+    """Models an immobile, rectangular shape."""
+    def __init__(self, center_x, center_y, x_length, y_length):
+        self.__bounds = (-0.5 * x_length, -0.5 * y_length, 0.5 * x_length, 0.5 * y_length)
+        center = to_vector(center_x, center_y)
+        self._center = center
+        delta_x = to_vector(0.5 * x_length, 0)
+        delta_y = to_vector(0, 0.5 * y_length)
+        self._sides = {
+            "East": (delta_x - delta_y, delta_x + delta_y),
+            "North": (delta_x + delta_y, -delta_x + delta_y),
+            "West": (-delta_x + delta_y, -delta_x - delta_y),
+            "South": (-delta_x - delta_y, delta_x - delta_y)
+        }
+
+    # Implementation of parent abstract methods
+    def get_pose(self):
+        return Pose(self.get_center(), 0)
+
+    def get_center(self):
+        """Returns the center of the Wall."""
+        return self._center
+    def get_corners(self):
+        """Returns a 4-tuple of the corners as column vectors."""
+        return (self._sides["East"][0], self._sides["North"][0],
+                self._sides["West"][0], self._sides["South"][0])
+
+    def in_rectangle(self, coords):
+        """Checks whether the coordinate, given as a column vector, is in the Rectangle."""
+        transformed = transform(transformation_inverse(self.get_pose()), coords)
+        point = vector_to_tuple(transformed)
+        return (within(self.__bounds[0], self.__bounds[2], point[0])
+                and within(self.__bounds[1], self.__bounds[3], point[1]))
+    def nearest_side(self, coords):
+        """Finds the nearest side to the coordinate given in the parent frame as a column vector.
+        Returns the side as a 2-tuple of coordinates representing a line segment in the
+        Rectangle's Frame.
+        To identify the nearest side, uses the algorithm outlined in Raymond Manzoni's answer at
+        http://math.stackexchange.com/questions/194550/
+        """
+        transformed = transform(transformation_inverse(self.get_pose()), coords)
+        point = vector_to_tuple(transformed)
+        slope = abs(float(self.__bounds[3] - self.__bounds[1])
+                    / (self.__bounds[2] - self.__bounds[0]))
+        if point[1] >= slope * abs(point[0]):
+            print("North")
+            return self._sides["North"]
+        elif point[1] <= -slope * abs(point[0]):
+            print("South")
+            return self._sides["South"]
+        elif slope * point[0] > abs(point[1]):
+            print("East")
+            return self._sides["East"]
+        elif slope * point[0] < -abs(point[1]):
+            print("West")
+            return self._sides["West"]

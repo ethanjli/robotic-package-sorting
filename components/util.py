@@ -2,6 +2,8 @@
 from collections import deque
 from struct import pack
 
+import numpy as np
+
 def ordinal(number):
     """Returns the string ordinal for the input number.
     Algorithm from Gareth's solution at:
@@ -49,6 +51,11 @@ def between(bound_min, bound_max, value):
 def within(bound_one, bound_two, value):
     """Checks whether the value is between the two bounds, inclusive."""
     return between(bound_one, bound_two, value) or between(bound_two, bound_one, value)
+
+def get_interpolator(x_y, left_limit, right_limit):
+    """Returns an interpolating function given a tuple of 2-tuple of x and y values."""
+    (x, y) = zip(*x_y)
+    return lambda interpolated_x: np.interp([interpolated_x], x, y, left_limit, right_limit)
 
 def initialized_coroutine(function):
     """Function decorator to automatically initialize a coroutine."""
