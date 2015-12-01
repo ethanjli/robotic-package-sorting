@@ -296,6 +296,14 @@ class VirtualRobot(InterruptableThread, Broadcaster, MobileFrame):
     def get_proximity_coords(self):
         """Returns the locations of the robot's left & right proximity sensors as column vectors."""
         return (to_vector(2.5, 1.7), to_vector(2.5, -1.7))
+    def get_proximity_distance_coords(self, left_distance, right_distance):
+        """Returns the coordinates of the obstacles from the left and right proximity distances."""
+        sensor_coords = self.get_proximity_coords()
+        left_coord = (None if left_distance is None
+                      else sensor_coords[0] + to_vector(left_distance, 0))
+        right_coord = (None if right_distance is None
+                       else sensor_coords[1] + to_vector(right_distance, 0))
+        return (left_coord, right_coord)
 
     # Implementation of parent abstract methods
     def _run(self):

@@ -1,4 +1,6 @@
 """Simulation of the world with virtual world objects."""
+from collections import defaultdict
+
 from components.util import rgb_to_hex, clip
 from components.messaging import Signal, Broadcaster
 from components.concurrency import Reactor
@@ -7,7 +9,6 @@ from components.geometry import to_vector, vector_to_tuple, vectors_to_flat
 from components.geometry import transformation, compose
 from components.geometry import transform, transform_x, transform_y, transform_all
 
-_FLOOR_BLACK = 20
 _FLOOR_WHITE = 90
 
 class VirtualWorld(Reactor, Broadcaster, Frame):
@@ -39,7 +40,15 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
             "borderLabel": {},
             "robotChassis": {},
             "robotFloorLeft": {},
-            "robotFloorRight": {}
+            "robotFloorRight": {},
+            "robotProximityLeft": {},
+            "robotProximityRight": {}
+        }
+        self._sensors = {
+            "pose": defaultdict(lambda: None),
+            "proximityLeft": defaultdict(lambda: None),
+            "proximityRight": defaultdict(lambda: None),
+            "psd": defaultdict(lambda: None)
         }
 
     # Utility for subclasses
@@ -104,7 +113,17 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
                                                     virtual_robot.get_right_floor_corners()))
         right_floor_shape = self._canvas.create_polygon(*transformed, fill="white", outline="white")
         self._primitives["robotFloorRight"][robot_name] = right_floor_shape
-    def __update_robot(self, robot_name, pose):
+        transformed = vectors_to_flat(transform_all(matrix, virtual_robot.get_proximity_coords()))
+        left_proximity_beam = self._canvas.create_line(transformed[0], transformed[1],
+                                                       transformed[0], transformed[1],
+                                                       fill="red")
+        self._primitives["robotProximityLeft"][robot_name] = left_proximity_beam
+        right_proximity_beam = self._canvas.create_line(transformed[2], transformed[3],
+                                                        transformed[2], transformed[3],
+                                                        fill="red")
+        self._primitives["robotProximityRight"][robot_name] = right_proximity_beam
+    def __update_robot(self, robot_name):
+        pose = self._sensors["pose"][robot_name]
         virtual_robot = self._robots[robot_name].get_virtual()
         matrix = compose(self.get_transformation(), transformation(pose))
         transformed = transform_all(matrix, virtual_robot.get_corners())
@@ -119,6 +138,7 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
         self.broadcast(Signal("UpdateCoords", self.get_name(), robot_name,
                               (self._primitives["robotFloorRight"][robot_name],
                                vectors_to_flat(transformed))))
+        self.__update_robot_proximity(robot_name)
     def __update_robot_floor(self, robot_name, floor_left, floor_right):
         robot = self._robots[robot_name]
         left_rescaled = robot.to_relative_whiteness(floor_left)
@@ -131,6 +151,27 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
         self.broadcast(Signal("UpdateConfig", self.get_name(), robot_name,
                               (self._primitives["robotFloorRight"][robot_name],
                                {"fill": right_hex, "outline": right_hex})))
+    def __update_robot_proximity(self, robot_name):
+        pose = self._sensors["pose"][robot_name]
+        robot = self._robots[robot_name]
+        virtual_robot = robot.get_virtual()
+        distances = (robot.to_prox_distance(self._sensors["proximityLeft"][robot_name]),
+                     robot.to_prox_distance(self._sensors["proximityRight"][robot_name]))
+        sensor_coords = virtual_robot.get_proximity_coords()
+        obstacle_coords = list(virtual_robot.get_proximity_distance_coords(*distances))
+        matrix = compose(self.get_transformation(), transformation(pose))
+        if obstacle_coords[0] is None:
+            obstacle_coords[0] = sensor_coords[0]
+        if obstacle_coords[1] is None:
+            obstacle_coords[1] = sensor_coords[1]
+        beam_coords = ((sensor_coords[0], obstacle_coords[0]),
+                       (sensor_coords[1], obstacle_coords[1]))
+        self.broadcast(Signal("UpdateCoords", self.get_name(), robot_name,
+                              (self._primitives["robotProximityLeft"][robot_name],
+                               vectors_to_flat(transform_all(matrix, beam_coords[0])))))
+        self.broadcast(Signal("UpdateCoords", self.get_name(), robot_name,
+                              (self._primitives["robotProximityRight"][robot_name],
+                               vectors_to_flat(transform_all(matrix, beam_coords[1])))))
     # Walls
     def add_wall(self, wall):
         """Adds a wall.
@@ -176,6 +217,8 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
         """Moves everything in the world to its initial position."""
         for (_, robot) in self._robots.items():
             robot.get_virtual().reset_pose()
+
+    # Virtual sensing
     def get_floor_color(self, coords):
         """Determines the floor color at the specified coords, given as a column vector.
         Color returned as a grayscale value between 0 and 255, inclusive."""
@@ -187,16 +230,25 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
     def get_proximity_distance(self, coords, angle):
         """Determines the distance to the nearest obstacle along the angle from the coords."""
         # TODO: also search packages, not just walls!
-        for wall in self._walls.values():
-            pass
+        distances = [wall.get_proximity_distance(coords, angle)
+                     for wall in self._walls.values()]
+        try:
+            return min(distance for distance in distances if distance is not None)
+        except ValueError:
+            return None
 
     # Implementation of parent abstract methods
     def _react(self, signal):
         if signal.Namespace in self._robots:
             if signal.Name == "Pose" or signal.Name == "ResetPose":
-                self.__update_robot(signal.Namespace, signal.Data)
+                self._sensors["pose"][signal.Namespace] = signal.Data
+                self.__update_robot(signal.Namespace)
             elif signal.Name == "Floor":
-                self.__update_robot_floor(signal.Namespace, signal.Data[0], signal.Data[1])
+                self.__update_robot_floor(signal.Namespace, *signal.Data)
+            elif signal.Name == "Proximity":
+                self._sensors["proximityLeft"][signal.Namespace] = signal.Data[0]
+                self._sensors["proximityRight"][signal.Namespace] = signal.Data[1]
+                self.__update_robot_proximity(signal.Namespace)
     def get_pose(self):
         return Pose(to_vector(0, 0), 0)
     def _get_scaling(self):

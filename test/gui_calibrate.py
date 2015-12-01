@@ -141,6 +141,7 @@ class GUICalibrate(Simulator):
         else:
             monitor = VirtualMonitor("Monitor 0", self._robots[0], self._world)
         monitor.register("Floor", self._world)
+        monitor.register("Proximity", self._world)
         self._add_thread(monitor)
     def _connect_post(self):
         self._add_robots()
