@@ -55,7 +55,7 @@ def within(bound_one, bound_two, value):
 def get_interpolator(x_y, left_limit, right_limit):
     """Returns an interpolating function given a tuple of 2-tuple of x and y values."""
     (x, y) = zip(*x_y)
-    return lambda interpolated_x: np.interp([interpolated_x], x, y, left_limit, right_limit)
+    return lambda interpolated_x: np.interp([interpolated_x], x, y, left_limit, right_limit)[0]
 
 def initialized_coroutine(function):
     """Function decorator to automatically initialize a coroutine."""
