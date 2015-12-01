@@ -173,6 +173,7 @@ class SimplePrimitivePlanner(Reactor, Broadcaster):
         super(SimplePrimitivePlanner, self).__init__(name)
         self._robot = robot
         self.__command_generator = self._generate_commands()
+        self._active = False
         next(self.__command_generator)
 
     # Implementation of parent abstract methods
@@ -181,12 +182,14 @@ class SimplePrimitivePlanner(Reactor, Broadcaster):
             return
         if signal.Name == "Start":
             self._broadcast_next_command()
-        elif signal.Name == "Moved":
+            self._active = True
+        elif signal.Name == "Moved" and self._active:
             self._broadcast_next_command()
         elif signal.Name == "Reset":
             self.broadcast(Signal("Stop", self.get_name(), self._robot.get_name(), None))
             self.__command_generator.send(False)
             self.clear()
+            self._active = False
     def _broadcast_next_command(self):
         command = self.__command_generator.send(True)
         self.broadcast(Signal("Motion", self.get_name(), self._robot.get_name(), command))
