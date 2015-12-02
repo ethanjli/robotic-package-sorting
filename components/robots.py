@@ -1,14 +1,24 @@
 """Classes for management of hamster and virtual robots."""
 import time
 from collections import namedtuple
+from sys import platform
 
 import numpy as np
 
-from hamster.comm_usb import RobotComm as HamsterComm
+# Select Hamster communication interface depending on operating system. OS X supports
+# BLE over the Hamster communication API, while other systems require use of a USB dongle.
+# The USB dongle does not support connection to multiple robots in the v1 distribution
+# of the Hamster communication API.
+if platform == "darwin":
+    from hamster.comm_ble import RobotComm as HamsterComm
+else:
+    from hamster.comm_usb import RobotComm as HamsterComm
+
 from components.util import rescale, clip, get_interpolator
 from components.messaging import Signal, Broadcaster
 from components.concurrency import InterruptableThread, Reactor
 from components.geometry import Pose, MobileFrame, direction_vector, to_vector
+from components.geometry import transform_all
 
 _PSD_PORT = 0
 _SERVO_PORT = 1
@@ -34,6 +44,12 @@ class Robot(object):
         self.prox_profile_interp = get_interpolator(prox_profile, np.nan, 2)
         prox_profile_inverse = tuple((dist, prox) for (prox, dist) in reversed(prox_profile))
         self.prox_profile_inverse_interp = get_interpolator(prox_profile_inverse, 84, np.nan)
+        psd_profile = ((35, 38), (39, 36), (42, 34), (47, 32), (51, 30), (56, 28),
+                       (60, 26), (65, 24), (70, 22), (77, 20), (86, 18), (94, 16),
+                       (106, 14), (122, 12), (144, 10), (174, 8), (192, 6))
+        self.psd_profile_interp = get_interpolator(psd_profile, np.nan, 6)
+        psd_profile_inverse = tuple((dist, psd) for (psd, dist) in reversed(psd_profile))
+        self.psd_profile_inverse_interp = get_interpolator(psd_profile_inverse, 192, np.nan)
 
     # Initialization
     def init_psd_scanner(self):
@@ -137,17 +153,19 @@ class Robot(object):
     def to_prox_distance(self, proximity):
         """Calculate the distance from the front of the robot."""
         distance = self.prox_profile_interp(proximity)
-        if np.isnan(distance):
-            return None
-        else:
-            return distance
+        return None if np.isnan(distance) else distance
     def to_prox_ir(self, distance):
         """Calculate the distance from the front of the robot."""
         proximity = self.prox_profile_inverse_interp(distance)
-        if np.isnan(proximity):
-            return None
-        else:
-            return proximity
+        return None if np.isnan(proximity) else proximity
+    def to_psd_distance(self, psd):
+        """Calculate the distance from the front of the PSD sensor."""
+        distance = self.psd_profile_interp(psd)
+        return None if np.isnan(distance) else distance
+    def to_psd_ir(self, distance):
+        """Calculate the distance from the front of the PSD sensor."""
+        psd = self.psd_profile_inverse_interp(distance)
+        return None if np.isnan(psd) else psd
 
 class Beeper(Reactor):
     """Beeps. Useful for notifications.
@@ -212,27 +230,41 @@ def centroid_to_instant_center(centroid_pose):
 
 class VirtualScanner(MobileFrame):
     """Models a PSD scanner mounted on a VirtualRobot."""
-    def __init__(self, angle):
+    def __init__(self, angle=0):
         super(VirtualScanner, self).__init__()
         self.__initial_servo_angle = angle
         self.servo_angle = angle
 
     # Implementation of parent abstract methods
     def get_pose(self):
-        return Pose(to_vector(0, 0), self.servo_angle)
+        return Pose(to_vector(0, 0), self.servo_angle - 0.5 * np.pi)
     def reset_pose(self):
         self.servo_angle = self.__initial_servo_angle
+
+    # PSD sensor
+    def get_psd_coords(self):
+        """Returns the coordinates of the Scanner's PSD sensor as column vectors.
+        PSD sensor is given as a line segment from the rear end of the sensor to the
+        front end of the sensor; then the ray directed out of the sensor is given by
+        the first tuple member as a point and the difference between the second and first
+        tuple members as the direction.
+        """
+        return (to_vector(2, -1), to_vector(2.5, -1))
+    def get_psd_distance_coords(self, distance):
+        """Returns the coordinates of the obstacle from the PSD sensor as a column vector."""
+        return None if distance is None else self.get_psd_coords()[0] + to_vector(distance, 0)
 
 class VirtualRobot(InterruptableThread, Broadcaster, MobileFrame):
     """Virtual robot to simulate a hamster robot.
 
     Signals Broadcast:
         Pose: broadcasts the current pose of the robot. Angle is not normalized.
+        ScannerPose: broadcasts the current pose of the robot's Scanner.
         ResetPose: broadcasts the current pose of the robot as it is (re)initialized.
     """
     def __init__(self, name, update_interval=0.01,
                  pose=centroid_to_instant_center(Pose(to_vector(0, 0), 0)),
-                 servo_angle=90):
+                 servo_angle=0):
         # The Coord of the input pose specifies the centroid of the robot
         super(VirtualRobot, self).__init__(name)
         self.__initial_pose = pose
@@ -272,7 +304,7 @@ class VirtualRobot(InterruptableThread, Broadcaster, MobileFrame):
             angle: the target angle. 1 to 180.
         """
         self._scanner.servo_angle = np.radians(angle)
-        self.__broadcast_pose()
+        self.__broadcast_servo_pose()
     # Chassis
     def get_corners(self):
         """Returns a tuple of the robot chassis's coordinates as column vectors."""
@@ -304,6 +336,10 @@ class VirtualRobot(InterruptableThread, Broadcaster, MobileFrame):
         right_coord = (None if right_distance is None
                        else sensor_coords[1] + to_vector(right_distance, 0))
         return (left_coord, right_coord)
+    # PSD scanner
+    def get_scanner(self):
+        """Returns the robot's VirtualScanner."""
+        return self._scanner
 
     # Implementation of parent abstract methods
     def _run(self):
@@ -323,6 +359,9 @@ class VirtualRobot(InterruptableThread, Broadcaster, MobileFrame):
             time.sleep(self.__update_interval)
     def __broadcast_pose(self):
         self.broadcast(Signal("Pose", self.get_name(), self.get_name(), self.get_pose()))
+    def __broadcast_servo_pose(self):
+        self.broadcast(Signal("ScannerPose", self.get_name(), self.get_name(),
+                              self._scanner.get_pose()))
     def get_pose(self):
         return Pose(self._pose_coord, self._pose_angle)
     def reset_pose(self):
@@ -330,4 +369,6 @@ class VirtualRobot(InterruptableThread, Broadcaster, MobileFrame):
         self._pose_angle = self.__initial_pose.Angle
         self._scanner.reset_pose()
         self.broadcast(Signal("ResetPose", self.get_name(), self.get_name(), self.get_pose()))
+        self.broadcast(Signal("ScannerPose", self.get_name(), self.get_name(),
+                              self._scanner.get_pose()))
 

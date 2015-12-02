@@ -8,7 +8,7 @@ from numpy import median
 from components.util import moving_average
 from components.messaging import Signal, Receiver, Broadcaster
 from components.concurrency import InterruptableThread, Reactor
-from components.geometry import transformation, transform_all
+from components.geometry import transformation, transform_all, compose, to_angle
 
 _WARMUP_TIME = 0.5
 
@@ -174,17 +174,23 @@ class VirtualMonitor(Reactor, Broadcaster):
     Signals Received:
         Receives the same signals as the Monitor class, plus the following Signals.
         Pose: Data should be the Pose of the robot specified in the Namespace.
+        ScannerPose: Data should be the Pose of the robot's Scanner, relative to the
+        robot's frame.
         Triggers an update of all sensor data.
     """
     def __init__(self, name, robot, virtual_world):
         super(VirtualMonitor, self).__init__(name)
         self._world = virtual_world
         robot.get_virtual().register("Pose", self)
+        robot.get_virtual().register("ScannerPose", self)
         robot.get_virtual().register("ResetPose", self)
         self._robot = robot
         self._robot_pose = robot.get_virtual().get_pose()
+        self._scanner_pose = robot.get_virtual().get_scanner().get_pose()
 
     # Implementation of parent abstract methods
+    def _run_pre(self):
+        self._robot.servo(90)
     def _react(self, signal):
         if not signal.Namespace == self._robot.get_name():
             return
@@ -192,6 +198,10 @@ class VirtualMonitor(Reactor, Broadcaster):
             self._robot_pose = signal.Data
             self._update_floor()
             self._update_proximity()
+            self._update_psd()
+        elif signal.Name == "ScannerPose":
+            self._scanner_pose = signal.Data
+            self._update_psd()
         elif signal.Name == "Servo":
             self._robot.servo(signal.Data)
             self._react_servo_post()
@@ -213,6 +223,14 @@ class VirtualMonitor(Reactor, Broadcaster):
         prox_right = self._robot.to_prox_ir(world.get_proximity_distance(sensor_coords[1], angle))
         self.broadcast(Signal("Proximity", self.get_name(), self._robot.get_name(),
                               (prox_left, prox_right)))
+    def _update_psd(self):
+        world = self._world
+        matrix = compose(transformation(self._robot_pose), transformation(self._scanner_pose))
+        virtual = self._robot.get_virtual()
+        sensor_coords = transform_all(matrix, virtual.get_scanner().get_psd_coords())
+        angle = to_angle(sensor_coords[1] - sensor_coords[0])
+        psd = self._robot.to_psd_ir(world.get_psd_distance(sensor_coords[0], angle))
+        self.broadcast(Signal("PSD", self.get_name(), self._robot.get_name(), psd))
 
     # Abstract methods
     def _react_servo_post(self):

@@ -42,6 +42,9 @@ def point_form(homogeneous_vector):
 def direction_vector(angle):
     """Converts an angle from the +x axis into a unit direction vector."""
     return to_vector(np.cos(angle), np.sin(angle))
+def to_angle(direction):
+    """Convers a direction vector into an angle in radians."""
+    return np.arctan2(direction[1], direction[0])[0]
 
 # Transformation matrices
 def rotation_matrix(angle):
@@ -134,10 +137,11 @@ class MobileFrame(Frame):
 
 class Rectangle(Frame):
     """Models an immobile, rectangular shape."""
-    def __init__(self, center_x, center_y, x_length, y_length):
+    def __init__(self, center_x, center_y, x_length, y_length, angle=0):
         self.__bounds = (-0.5 * x_length, -0.5 * y_length, 0.5 * x_length, 0.5 * y_length)
         center = to_vector(center_x, center_y)
         self._center = center
+        self._angle = angle
         delta_x = to_vector(0.5 * x_length, 0)
         delta_y = to_vector(0, 0.5 * y_length)
         self._sides = {
@@ -149,7 +153,7 @@ class Rectangle(Frame):
 
     # Implementation of parent abstract methods
     def get_pose(self):
-        return Pose(self.get_center(), 0)
+        return Pose(self._center, self._angle)
 
     def get_center(self):
         """Returns the center of the Wall."""

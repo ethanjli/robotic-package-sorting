@@ -8,7 +8,7 @@ import numpy as np
 from components.messaging import Signal
 from components.robots import VirtualRobot
 from components.sensors import FilteringMonitor, VirtualMonitor
-from components.world import Border, Wall
+from components.world import Border, Wall, Package
 from components.control import Motion, PrimitiveController, SimplePrimitivePlanner
 from components.app import Simulator
 
@@ -142,6 +142,7 @@ class GUICalibrate(Simulator):
             monitor = VirtualMonitor("Monitor 0", self._robots[0], self._world)
         monitor.register("Floor", self._world)
         monitor.register("Proximity", self._world)
+        monitor.register("PSD", self._world)
         self._add_thread(monitor)
     def _connect_post(self):
         self._add_robots()
@@ -163,10 +164,11 @@ class GUICalibrate(Simulator):
         self.__move_4_button.config(state=new_state)
     def _generate_virtual_robots(self):
         for i in range(0, self._num_robots):
-            yield VirtualRobot("Virtual {}".format(i))
+            yield VirtualRobot("Virtual {}".format(i), servo_angle=(0.5 * np.pi))
     def _populate_world(self):
         self._world.add_border(Border(0, 0, 2.5, 0, 1, 8))
         self._world.add_wall(Wall(0, 0, 12, 20))
+        self._world.add_package(Package(0, -20, 0, 0))
     def _start_simulator(self):
         self.__stop_button.config(state="disabled")
         self.__set_motion_buttons_state("disabled")
