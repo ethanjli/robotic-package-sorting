@@ -156,7 +156,9 @@ class RobotApp(GUIReactor, Broadcaster):
                 if not self.__start_hamster_comm():
                     return False
         next_hamster = self.__hamster_comm.robotList[len(self._robots)]
-        self._robots.append(Robot(next_hamster, next(self.__virtual_robot_generator)))
+        robot = Robot(next_hamster, next(self.__virtual_robot_generator))
+        self._robots.append(robot)
+        self._add_robot_post(robot)
         return True
     def __start_hamster_comm(self):
         self.__hamster_comm = HamsterComm(self._num_robots, MIN_RSSI)
@@ -172,7 +174,9 @@ class RobotApp(GUIReactor, Broadcaster):
         if not tkMessageBox.askokcancel("Robot Connection Manager",
                                         "Add virtual robot instead?"):
             return False
-        self._robots.append(Robot(None, next(self.__virtual_robot_generator)))
+        robot = Robot(None, next(self.__virtual_robot_generator))
+        self._robots.append(robot)
+        self._add_robot_post(robot)
         return True
 
     # Abstract methods
@@ -185,9 +189,13 @@ class RobotApp(GUIReactor, Broadcaster):
     def _generate_virtual_robots(self):
         """A generator to yield the specified number of virtual robots
         The order of virtual robots generated should correspond to the order of
-        hamster robots added."""
+        hamster robots added.
+        """
         for _ in range(0, self._num_robots):
             yield None
+    def _add_robot_post(self, robot):
+        """Executes after each robot (whether virtual or real) is connected."""
+        pass
 
 class Simulator(RobotApp):
     """Displays and simulates the virtual world of a robot.
@@ -253,27 +261,26 @@ class Simulator(RobotApp):
                                    self.__scale)
     def _initialize_world(self, grid_spacing=1):
         """Initializes the world and calls the _populate_world method to add objects.
-        Should probably be called in the implementing subclass's __init__ method."""
+        Must be called after the implementing subclass calls the _initialize_simulator_widgets
+        method. Should probably be called in the implementing subclass's __init__ method.
+        """
         self._world.draw_grid(grid_spacing)
-        self._populate_world()
-    def _add_robots(self):
-        """Add all robots to the virtual world.
-        Should probably be called in the implementing subclass's _connect_post method."""
-        for robot in self._robots:
-            self._world.add_robot(robot)
-    def _add_virtual_world_threads(self):
-        """Add the threads representing the virtual world and objects in it.
-        Should probably be called in the implementing subclass's _initialize_threads method."""
-        self._add_robot_threads()
-        self._threads[self._world.get_name()] = self._world
         self._world.register("UpdateCoords", self)
         self._world.register("UpdateConfig", self)
+        self._populate_world()
+    def _add_virtual_world_threads(self):
+        """Add the threads representing the virtual world and objects in it.
+        Should probably be called in the implementing subclass's _initialize_threads method.
+        """
+        self._add_robot_threads()
+        self._threads[self._world.get_name()] = self._world
     def _change_reset_button(self, new_text):
         """Changes the text (and thus state) of the reset button."""
         self.__reset_button.config(text=new_text)
     def _enable_start_button(self):
         """Enables the simulation start button.
-        Should probably be called in the implementing subclass's _connect_post method."""
+        Should probably be called in the implementing subclass's _connect_post method.
+        """
         self.__run_button.config(state="normal")
 
     # Reset button callback
@@ -294,7 +301,9 @@ class Simulator(RobotApp):
         self._disable_connect_button("Simulating")
         virtual_robot_generator = self._generate_virtual_robots()
         for _ in range(0, self._num_robots):
-            self._robots.append(Robot(None, next(virtual_robot_generator)))
+            robot = Robot(None, next(virtual_robot_generator))
+            self._robots.append(robot)
+            self._add_robot_post(robot)
         self._initialize_threads()
         self._start_threads()
         self._connect_post()
@@ -321,14 +330,17 @@ class Simulator(RobotApp):
             self.__canvas.itemconfig(signal.Data[0], **signal.Data[1])
         else:
             self._react_simulator(signal)
+    def _add_robot_post(self, robot):
+        """Add the robot to the virtual world."""
+        self._world.add_robot(robot)
 
     # Abstract methods
+    def _start_simulator(self):
+        """Starts simulation execution. Called once."""
+        pass
     def _reset_simulator_post(self):
         """Called after the simulator's world is reset.
         Use this to reset the state of planners, etc."""
-        pass
-    def _start_simulator(self):
-        """Starts simulation execution. Called once."""
         pass
     def _pause_simulator(self):
         """Pauses simulation execution."""

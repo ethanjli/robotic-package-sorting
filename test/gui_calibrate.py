@@ -145,7 +145,6 @@ class GUICalibrate(Simulator):
         monitor.register("PSD", self._world)
         self._add_thread(monitor)
     def _connect_post(self):
-        self._add_robots()
         self._change_reset_button("Reset")
         self._enable_start_button()
         movement_multipliers = self.__calibrate_frame.nametowidget("""multipliersFrame.move"""
