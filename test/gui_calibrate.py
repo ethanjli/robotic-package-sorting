@@ -40,6 +40,9 @@ class GUICalibrate(Simulator):
         if signal.Name == "Moved":
             self.__set_motion_buttons_state("normal")
             self.__pauseresume_button.config(state="disabled", text="Pause")
+        elif signal.Name == "Motion":
+            self.__set_motion_buttons_state("disabled")
+
     def _initialize_widgets(self):
         toolbar_frame = ttk.Frame(self._root, name="toolbarFrame")
         toolbar_frame.pack(side="top", fill="x")
@@ -130,6 +133,7 @@ class GUICalibrate(Simulator):
 
         planner = SquarePlanner("SquarePlanner", self._robots[0])
         planner.register("Motion", controller)
+        planner.register("Motion", self)
         planner.register("Stop", controller)
         controller.register("Moved", planner)
         self.register("Start", planner)
@@ -174,10 +178,13 @@ class GUICalibrate(Simulator):
         self.broadcast(Signal("Start", self.get_name(), self._robots[0].get_name(), None))
     def _pause_simulator(self):
         self.broadcast(Signal("Pause", self.get_name(), self._robots[0].get_name(), None))
+        self.__set_motion_buttons_state("normal")
     def _resume_simulator(self):
         self.broadcast(Signal("Resume", self.get_name(), self._robots[0].get_name(), None))
+        self.__set_motion_buttons_state("disabled")
     def _reset_simulator_post(self):
         self.broadcast(Signal("Reset", self.get_name(), self._robots[0].get_name(), None))
+        self.__set_motion_buttons_state("normal")
 
 
     # Multiplier dropdown callbacks
