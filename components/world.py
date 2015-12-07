@@ -9,6 +9,7 @@ from components.geometry import Pose, Frame, MobileFrame, Rectangle
 from components.geometry import to_vector, vector_to_tuple, vectors_to_flat, direction_vector
 from components.geometry import transformation, compose
 from components.geometry import transform, transform_x, transform_y, transform_all
+from components.geometry import ray_distance_to
 
 _FLOOR_WHITE = 90
 
@@ -245,6 +246,7 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
         Arguments:
             package: a Package.
         """
+        package.register("ResetPose", self)
         self._objects["package"][package.get_id()] = package
         self.__draw_package(package)
     def __draw_package(self, package):
@@ -254,6 +256,15 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
         self._canvas.itemconfig(package_label, text=str(package_id), tags=("packageLabel"))
         self._primitives["package"][package_id] = package_rect
         self._primitives["packageLabel"][package_id] = package_label
+    def __update_package(self, package_id, pose):
+        package = self._objects["package"][package_id]
+        matrix = compose(self.get_transformation(), transformation(pose))
+        transformed = vectors_to_flat(transform_all(matrix, package.get_corners()))
+        self.broadcast(Signal("UpdateCoords", self.get_name(), package_id,
+                              (self._primitives["package"][package_id], transformed)))
+        self.broadcast(Signal("UpdateCoords", self.get_name(), package_id,
+                              (self._primitives["packageLabel"][package_id],
+                               vector_to_tuple(transform(matrix, to_vector(0, 0))))))
     # Support
     def __draw_rectangle(self, rectangle):
         matrix = compose(self.get_transformation(), rectangle.get_transformation())
@@ -286,12 +297,7 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
         side of the Rectangle intersecting with the ray, and the id of that Rectangle.
         """
         all_rectangles = self._objects["wall"].values() + self._objects["package"].values()
-        distances = [rectangle.ray_distance_to(coords, angle) + (rectangle.get_id(),)
-                     for rectangle in all_rectangles]
-        try:
-            return min_first(iter_first_not_none(distances))
-        except ValueError:
-            return None
+        return ray_distance_to(all_rectangles, coords, angle)
     def get_psd_distance(self, coords, angle):
         """Determines the distance to the nearest obstacle along the angle from the coords.
 
@@ -302,12 +308,27 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
         Returns a 3-tuple of the distance to the nearest Wall intersecting with the ray, the name
         of the intersecting side of that Wall, and the id of that Wall.
         """
-        distances = [wall.ray_distance_to(coords, angle) + (wall.get_id(),)
-                     for wall in self._objects["wall"].values()]
+        return ray_distance_to(self._objects["wall"].values(), coords, angle)
+    # Localization
+    def guess_rectangle(self, point, rect_type=None):
+        """Guesses the nearest rectangle, and its nearest side, to the specified point.
+
+        Arguments:
+            point: a 2-D column vector.
+            rect_type: a string, any one of: "wall", "package", "border", None. Specifies the type
+            of rectangle to guess for. If None, searches among all rectangle types.
+
+        Returns a 3-tuple of the distance to the nearest Rectangle of that type, the name of the
+        nearest side of that Rectangle, and the id of that Rectangle.
+        """
+        if rect_type is None:
+            rects = chain(self._objects["wall"].items(), self._objects["package"].items())
+        else:
+            rects = self._objects[rect_type].items()
+        rectangles = [rectangle.point_distance_to(point) + (rect_id, )
+                      for (rect_id, rectangle) in rects]
         try:
-            return min_first(iter_first_not_none(distances))
-        except ValueError:
-            return None
+            return min_first(iter_first_not_none(rectangles))
         except ValueError:
             return None
 
@@ -338,6 +359,9 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
                     self.__update_robot_psd(signal.Namespace)
                 except KeyError:
                     pass
+        elif signal.Sender == "Package" and signal.Namespace in self._objects["package"]:
+            if signal.Name == "ResetPose":
+                self.__update_package(signal.Namespace, signal.Data)
     def get_pose(self):
         return Pose(to_vector(0, 0), 0)
     def _get_scaling(self):
@@ -380,4 +404,9 @@ class Package(UniqueRectangle, MobileFrame):
         super(Package, self).__init__(package_id, center_x, center_y, x_length, y_length, angle)
         self._initial_pose = Pose(to_vector(center_x, center_y), angle)
 
+    # Implementation of parent abstract methods
+    def reset_pose(self):
+        self._center = self._initial_pose.Coord
+        self._angle = self._initial_pose.Angle
+        self.broadcast(Signal("ResetPose", "Package", self.get_id(), self.get_pose()))
 

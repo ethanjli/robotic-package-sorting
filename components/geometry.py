@@ -206,3 +206,36 @@ class Rectangle(Frame):
             return min_first(iter_first_not_none(distances))
         except ValueError:
             return (None, None)
+    def point_distance_to(self, point):
+        """Returns the distance to the Rectangle from the given point in the parent frame.
+        Returns a 2-tuple of the distance between the point and the nearest side (as a line)
+        and the name of the nearest side.
+        Uses the formula presented in Wolfram MathWorld's "Point-Line Distance--2-Dimensional"
+        """
+        transformed = transform(self.get_transformation_inverse(), point)
+        side_name = self.nearest_side(transformed)
+        side = self.get_side(side_name)
+        distance = ((np.cross(side[1] - side[0], side[0] - transformed)).norm()
+                    / (side[1] - side[0]).norm())
+        return (distance, side_name)
+
+def ray_distance_to(rectangles, coords, angle):
+    """Determines the first rectangle hit by the specified ray, and the distance along the ray.
+
+    Arguments:
+        rectangles: an iterable of Rectangles to check.
+        coords: the origin of the ray, as a column vector, in the parent frame of the rectangels.
+        angle: the direction of the ray, in radians, in the parent frame of the rectangles.
+
+    Return:
+        If a rectangle is hit by the ray, a 3-tuple of the distance to that rectangle, the
+        name of the side of the rectangle hit by the ray, and the id of the rectangle.
+        Otherwise, returns None.
+    """
+    distances = [rectangle.ray_distance_to(coords, angle) + (rectangle.get_id(),)
+                 for rectangle in rectangles]
+    try:
+        return min_first(iter_first_not_none(distances))
+    except ValueError:
+        return None
+
