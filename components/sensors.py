@@ -216,21 +216,33 @@ class VirtualMonitor(Reactor, Broadcaster):
     def _update_proximity(self):
         world = self._world
         matrix = transformation(self._robot_pose)
-        virtual = self._robot.get_virtual()
-        sensor_coords = transform_all(matrix, virtual.get_proximity_coords())
+        robot = self._robot
+        sensor_coords = transform_all(matrix, robot.get_virtual().get_proximity_coords())
         angle = self._robot_pose.Angle
-        prox_left = self._robot.to_prox_ir(world.get_proximity_distance(sensor_coords[0], angle))
-        prox_right = self._robot.to_prox_ir(world.get_proximity_distance(sensor_coords[1], angle))
-        self.broadcast(Signal("Proximity", self.get_name(), self._robot.get_name(),
+        prox_dist_left = world.get_proximity_distance(sensor_coords[0], angle)
+        try:
+            prox_left = robot.to_prox_ir(prox_dist_left[0])
+        except TypeError:
+            prox_left = None
+        prox_dist_right = world.get_proximity_distance(sensor_coords[1], angle)
+        try:
+            prox_right = robot.to_prox_ir(prox_dist_right[0])
+        except TypeError:
+            prox_right = None
+        self.broadcast(Signal("Proximity", self.get_name(), robot.get_name(),
                               (prox_left, prox_right)))
     def _update_psd(self):
         world = self._world
         matrix = compose(transformation(self._robot_pose), transformation(self._scanner_pose))
-        virtual = self._robot.get_virtual()
-        sensor_coords = transform_all(matrix, virtual.get_scanner().get_psd_coords())
+        robot = self._robot
+        sensor_coords = transform_all(matrix, robot.get_virtual().get_scanner().get_psd_coords())
         angle = to_angle(sensor_coords[1] - sensor_coords[0])
-        psd = self._robot.to_psd_ir(world.get_psd_distance(sensor_coords[0], angle))
-        self.broadcast(Signal("PSD", self.get_name(), self._robot.get_name(), psd))
+        psd_dist = world.get_psd_distance(sensor_coords[0], angle)
+        try:
+            psd = robot.to_psd_ir(psd_dist[0])
+        except TypeError:
+            psd = None
+        self.broadcast(Signal("PSD", self.get_name(), robot.get_name(), psd))
 
     # Abstract methods
     def _react_servo_post(self):

@@ -165,9 +165,9 @@ class GUICalibrate(Simulator):
         for i in range(0, self._num_robots):
             yield VirtualRobot("Virtual {}".format(i), servo_angle=(0.5 * np.pi))
     def _populate_world(self):
-        self._world.add_border(Border(0, 0, 2.5, 0, 1, 8))
-        self._world.add_wall(Wall(0, 0, 12, 20))
-        self._world.add_package(Package(0, -20, 0, 0))
+        self._world.add_border(Border(0, color=0, center_x=2.5, y_length=8))
+        self._world.add_wall(Wall(1, center_y=12, x_length=20))
+        self._world.add_package(Package(2, center_x=-20))
     def _start_simulator(self):
         self.__stop_button.config(state="disabled")
         self.__set_motion_buttons_state("disabled")

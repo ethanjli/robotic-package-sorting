@@ -1,6 +1,7 @@
 """Utility functions/classes."""
 from collections import deque
 from struct import pack
+from itertools import ifilter
 
 import numpy as np
 
@@ -56,6 +57,13 @@ def get_interpolator(x_y, left_limit, right_limit):
     """Returns an interpolating function given a tuple of 2-tuple of x and y values."""
     (x, y) = zip(*x_y)
     return lambda interpolated_x: np.interp([interpolated_x], x, y, left_limit, right_limit)[0]
+
+def iter_first_not_none(iterable):
+    """Returns an iterator of all items in the iterable whose zeroth elems are not None."""
+    return ifilter(lambda element: element[0] is not None, iterable)
+def min_first(iterable):
+    """Returns the smallest value of all items in the iterable, compared by their zeroth elems."""
+    return min(iterable, key=lambda element: element[0])
 
 def initialized_coroutine(function):
     """Function decorator to automatically initialize a coroutine."""

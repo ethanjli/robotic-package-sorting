@@ -2,11 +2,11 @@
 from collections import defaultdict
 from itertools import chain
 
-from components.util import rgb_to_hex, clip
+from components.util import rgb_to_hex, clip, iter_first_not_none, min_first
 from components.messaging import Signal, Broadcaster
 from components.concurrency import Reactor
 from components.geometry import Pose, Frame, MobileFrame, Rectangle
-from components.geometry import to_vector, vector_to_tuple, vectors_to_flat
+from components.geometry import to_vector, vector_to_tuple, vectors_to_flat, direction_vector
 from components.geometry import transformation, compose
 from components.geometry import transform, transform_x, transform_y, transform_all
 
@@ -276,20 +276,38 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
                 return color
         return _FLOOR_WHITE
     def get_proximity_distance(self, coords, angle):
-        """Determines the distance to the nearest obstacle along the angle from the coords."""
-        distances = [rectangle.get_proximity_distance(coords, angle)
-                     for rectangle in chain(self._objects["wall"].values(),
-                                            self._objects["package"].values())]
+        """Determines the distance to the nearest obstacle along the angle from the coords.
+
+        Arguments:
+            coords: a 2-D column vector of the origin of the ray.
+            angle: the direction of the ray.
+
+        Returns a 3-tuple of the distance to the nearest Wall or Package, the name of the
+        side of the Rectangle intersecting with the ray, and the id of that Rectangle.
+        """
+        all_rectangles = self._objects["wall"].values() + self._objects["package"].values()
+        distances = [rectangle.ray_distance_to(coords, angle) + (rectangle.get_id(),)
+                     for rectangle in all_rectangles]
         try:
-            return min(distance for distance in distances if distance is not None)
+            return min_first(iter_first_not_none(distances))
         except ValueError:
             return None
     def get_psd_distance(self, coords, angle):
-        """Determines the distance to the nearest obstacle along the angle from the coords."""
-        distances = [rectangle.get_proximity_distance(coords, angle)
-                     for rectangle in self._objects["wall"].values()]
+        """Determines the distance to the nearest obstacle along the angle from the coords.
+
+        Arguments:
+            coords: a 2-D column vector of the origin of the ray.
+            angle: the direction of the ray.
+
+        Returns a 3-tuple of the distance to the nearest Wall intersecting with the ray, the name
+        of the intersecting side of that Wall, and the id of that Wall.
+        """
+        distances = [wall.ray_distance_to(coords, angle) + (wall.get_id(),)
+                     for wall in self._objects["wall"].values()]
         try:
-            return min(distance for distance in distances if distance is not None)
+            return min_first(iter_first_not_none(distances))
+        except ValueError:
+            return None
         except ValueError:
             return None
 
@@ -325,37 +343,41 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
     def _get_scaling(self):
         return (self.__scale, -self.__scale)
 
-class Border(Rectangle):
-    """Models black border on the floor."""
-    def __init__(self, border_id, color=0, center_x=0, center_y=0, x_length=1, y_length=4):
-        super(Border, self).__init__(center_x, center_y, x_length, y_length)
-        self.__id = border_id
-        self.__color = color
+class UniqueRectangle(Rectangle):
+    """Models a unique rectangle in the virtual world.
+    Any UniqueRectangle in the virtual world has a unique id."""
+    def __init__(self, rect_id, center_x, center_y, x_length, y_length, angle=0):
+        super(UniqueRectangle, self).__init__(center_x, center_y, x_length, y_length, angle)
+        self.__id = rect_id
 
     def get_id(self):
-        """Returns the unique border id of the Border."""
+        """Returns the unique rectangle id of the UniqueRectangle."""
         return self.__id
+
+class Border(UniqueRectangle):
+    """Models black border on the floor."""
+    def __init__(self, border_id, color=0, center_x=0, center_y=0, x_length=1, y_length=4):
+        super(Border, self).__init__(border_id, center_x, center_y, x_length, y_length)
+        self.__color = color
+
     def get_color(self):
         """Returns the color of the Border."""
         return self.__color
 
-class Wall(Rectangle):
+class Wall(UniqueRectangle):
     """Models a box visible to the proximity and PSD sensors."""
     def __init__(self, wall_id, center_x=0, center_y=0, x_length=10, y_length=4):
-        super(Wall, self).__init__(center_x, center_y, x_length, y_length)
-        self.__id = wall_id
+        super(Wall, self).__init__(wall_id, center_x, center_y, x_length, y_length)
 
-    def get_id(self):
-        """Returns the unique border id of the Border."""
-        return self.__id
+class Package(UniqueRectangle, MobileFrame):
+    """Models a movable box visible to the proximity sensor.
 
-class Package(Rectangle, MobileFrame):
-    """Models a movable box visible to the proximity sensor."""
+    Signals Broadcast:
+        Broadcasts all Signals with "Package" as Sender and the rectangle id as Namespace.
+        ResetPose: broadcasts the current pose of the Package as it is reset.
+    """
     def __init__(self, package_id, center_x=0, center_y=0, angle=0, x_length=4, y_length=4):
-        super(Package, self).__init__(center_x, center_y, x_length, y_length, angle)
-        self.__id = package_id
+        super(Package, self).__init__(package_id, center_x, center_y, x_length, y_length, angle)
+        self._initial_pose = Pose(to_vector(center_x, center_y), angle)
 
-    def get_id(self):
-        """Returns the unique package id of the Package."""
-        return self.__id
 

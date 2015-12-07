@@ -15,7 +15,7 @@ else:
     from hamster.comm_usb import RobotComm as HamsterComm
 
 from components.util import rescale, clip, get_interpolator
-from components.messaging import Signal, Broadcaster
+from components.messaging import Signal
 from components.concurrency import InterruptableThread, Reactor
 from components.geometry import Pose, MobileFrame, direction_vector, to_vector
 from components.geometry import transform_all
@@ -254,7 +254,7 @@ class VirtualScanner(MobileFrame):
         """Returns the coordinates of the obstacle from the PSD sensor as a column vector."""
         return None if distance is None else self.get_psd_coords()[0] + to_vector(distance, 0)
 
-class VirtualRobot(InterruptableThread, Broadcaster, MobileFrame):
+class VirtualRobot(InterruptableThread, MobileFrame):
     """Virtual robot to simulate a hamster robot.
 
     Signals Broadcast:

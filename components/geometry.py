@@ -7,7 +7,8 @@ from itertools import chain
 
 import numpy as np
 
-from components.util import between, within
+from components.messaging import Broadcaster
+from components.util import between, within, iter_first_not_none, min_first
 
 # Coord should be a numpy array representing a column vector.
 # Angle should be in radians from the frame's +x axis.
@@ -127,17 +128,20 @@ class Frame(object):
     def _get_scaling(self):
         """Returns a 2-tuple of the x and y scaling relative to its parent Frame."""
         return (1, 1)
-class MobileFrame(Frame):
+class MobileFrame(Frame, Broadcaster):
     """Interface for a mobile Frame."""
     def __init__(self):
         super(MobileFrame, self).__init__()
 
+    # Abstract methods
     def reset_pose(self):
         """Resets the frame to its initial pose."""
+        pass
 
 class Rectangle(Frame):
-    """Models an immobile, rectangular shape."""
+    """Models a rectangular shape."""
     def __init__(self, center_x, center_y, x_length, y_length, angle=0):
+        super(Rectangle, self).__init__()
         self.__bounds = (-0.5 * x_length, -0.5 * y_length, 0.5 * x_length, 0.5 * y_length)
         center = to_vector(center_x, center_y)
         self._center = center
@@ -162,6 +166,9 @@ class Rectangle(Frame):
         """Returns a 4-tuple of the corners as column vectors."""
         return (self._sides["East"][0], self._sides["North"][0],
                 self._sides["West"][0], self._sides["South"][0])
+    def get_side(self, side_name):
+        """Returns the specified side."""
+        return self._sides[side_name]
 
     def in_rectangle(self, coords):
         """Checks whether the coordinate, given as a column vector, is in the Rectangle."""
@@ -171,8 +178,7 @@ class Rectangle(Frame):
                 and within(self.__bounds[1], self.__bounds[3], point[1]))
     def nearest_side(self, coords):
         """Finds the nearest side to the coordinate given in the parent frame as a column vector.
-        Returns the side as a 2-tuple of coordinates representing a line segment in the
-        Rectangle's Frame.
+        Returns the side as the name of the nearest side.
         To identify the nearest side, uses the algorithm outlined in Raymond Manzoni's answer at
         http://math.stackexchange.com/questions/194550/
         """
@@ -181,21 +187,22 @@ class Rectangle(Frame):
         slope = abs(float(self.__bounds[3] - self.__bounds[1])
                     / (self.__bounds[2] - self.__bounds[0]))
         if point[1] >= slope * abs(point[0]):
-            return self._sides["North"]
+            return "North"
         elif point[1] <= -slope * abs(point[0]):
-            return self._sides["South"]
+            return "South"
         elif slope * point[0] > abs(point[1]):
-            return self._sides["East"]
+            return "East"
         elif slope * point[0] < -abs(point[1]):
-            return self._sides["West"]
-    def get_proximity_distance(self, ray_point, ray_angle):
+            return "West"
+    def ray_distance_to(self, ray_point, ray_angle):
         """Returns the distance to the Rectangle from the given ray, if the ray intersects.
-        The ray should be given in the parent frame as a column vector and an angle."""
+        The ray should be given in the parent frame as a column vector and an angle.
+        Returns a 2-tuple of the actual distance and the name of the intersecting side."""
         matrix = self.get_transformation()
-        distances = tuple(find_ray_segment_intersection(ray_point, ray_angle,
-                                                        *transform_all(matrix, side))
-                          for side in self._sides.values())
+        distances = tuple((find_ray_segment_intersection(ray_point, ray_angle,
+                                                         *transform_all(matrix, side)), side_name)
+                          for (side_name, side) in self._sides.items())
         try:
-            return min(distance for distance in distances if distance is not None)
+            return min_first(iter_first_not_none(distances))
         except ValueError:
-            return None
+            return (None, None)
