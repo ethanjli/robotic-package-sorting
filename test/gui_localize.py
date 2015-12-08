@@ -20,7 +20,8 @@ class SquarePlanner(SimplePrimitivePlanner):
             Motion("RotateTowards", "DeadReckoning", 1, 20, (3.5, 0)),
             Motion("MoveTo", "DeadReckoning", 1, 20, (3.5, None)),
             Motion("RotateTowards", "DeadReckoning", 1, 20, (3.5, 4)),
-            Motion("MoveTo", "DeadReckoning", 1, 20, (None, 4)),
+            Motion("MoveUntil", "SensorDistance", 1, 20,
+                   lambda prox_left, prox_right, psd: prox_left <= 4 and prox_right <= 4),
             Motion("RotateTowards", "DeadReckoning", 1, 20, (-0.5, 4)),
             Motion("MoveTo", "DeadReckoning", 1, 20, (-0.5, None)),
             Motion("RotateTowards", "DeadReckoning", 1, 20, (-0.5, 0)),
@@ -117,7 +118,16 @@ class GUILocalize(Simulator):
         self.register("LocalizeProx", self._world)
         self.register("LocalizePSD", self._world)
 
-        controller = PrimitiveController("MotionController", self._robots[0])
+        if self._robots[0].is_real():
+            monitor = FilteringMonitor("Monitor 0", self._robots[0])
+        else:
+            monitor = VirtualMonitor("Monitor 0", self._robots[0], self._world)
+        monitor.register("Floor", self._world)
+        monitor.register("Proximity", self._world)
+        monitor.register("PSD", self._world)
+        self._add_thread(monitor)
+
+        controller = PrimitiveController("MotionController", self._robots[0], monitor)
         controller.register("Moved", self)
         self.register("Motion", controller)
         self.register("Stop", controller)
@@ -134,17 +144,10 @@ class GUILocalize(Simulator):
         self.register("Reset", planner)
         self._add_thread(planner)
 
-        if self._robots[0].is_real():
-            monitor = FilteringMonitor("Monitor 0", self._robots[0])
-        else:
-            monitor = VirtualMonitor("Monitor 0", self._robots[0], self._world)
-        monitor.register("Floor", self._world)
-        monitor.register("Proximity", self._world)
-        monitor.register("PSD", self._world)
-        self._add_thread(monitor)
-
-        self._robots[0].move_multiplier = 0.095
-        self._robots[0].rotate_multiplier = 0.052
+        # Calibration
+        self._robots[0].move_multiplier = 0.12
+        self._robots[0].rotate_multiplier = 0.065
+        self._robots[0].set_wheel_balance(8)
     def _connect_post(self):
         self._change_reset_button("Reset")
         self._enable_start_button()

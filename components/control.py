@@ -72,11 +72,15 @@ class PrimitiveController(Reactor, Broadcaster):
         Moved: sent when the last command has been executed. Data is a 2-tuple of the
         last command and the current pose.
     """
-    def __init__(self, name, robot):
+    def __init__(self, name, robot, monitor=None):
         super(PrimitiveController, self).__init__(name)
         self._robot = robot
         self._robot.get_virtual().register("Pose", self)
         self._robot.get_virtual().register("ResetPose", self)
+        if monitor is not None:
+            monitor.register("Floor", self)
+            monitor.register("Proximity", self)
+            monitor.register("PSD", self)
         self._robot_pose = robot.get_virtual().get_pose()
         self._previous_pose = self._robot_pose
         self._target_pose = None
