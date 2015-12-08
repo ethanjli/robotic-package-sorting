@@ -16,18 +16,22 @@ from components.app import Simulator
 class SquarePlanner(SimplePrimitivePlanner):
     """Plans a square motion path for the robot."""
     def _generate_commands(self):
-        targets = ((3.5, 0), (3.5, None), (3.5, 4), (None, 4),
-                   (-0.5, 4), (-0.5, None), (-0.5, 0), (None, 0))
+        motions = [
+            Motion("RotateTowards", "DeadReckoning", 1, 20, (3.5, 0)),
+            Motion("MoveTo", "DeadReckoning", 1, 20, (3.5, None)),
+            Motion("RotateTowards", "DeadReckoning", 1, 20, (3.5, 4)),
+            Motion("MoveTo", "DeadReckoning", 1, 20, (None, 4)),
+            Motion("RotateTowards", "DeadReckoning", 1, 20, (-0.5, 4)),
+            Motion("MoveTo", "DeadReckoning", 1, 20, (-0.5, None)),
+            Motion("RotateTowards", "DeadReckoning", 1, 20, (-0.5, 0)),
+            Motion("MoveTo", "DeadReckoning", 1, 20, (None, 0))
+        ]
         while True:
-            corner_index = 0
+            index = 0
             resetting = False
             while not resetting:
-                if corner_index % 2 == 0:
-                    motion = Motion("RotateTowards", "DeadReckoning", 1, 20, targets[corner_index])
-                else:
-                    motion = Motion("MoveTo", "DeadReckoning", 1, 20, targets[corner_index])
-                resetting = not (yield motion)
-                corner_index = (corner_index + 1) % len(targets)
+                resetting = not (yield motions[index])
+                index = (index + 1) % len(motions)
 
 class GUILocalize(Simulator):
     """Localizes the robot."""
