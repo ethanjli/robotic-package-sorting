@@ -264,7 +264,7 @@ class Rectangle(Frame):
         side_name = self.nearest_side(transformed)
         side = self.get_side(side_name)
         distance = (np.linalg.norm(np.cross((side[1] - side[0]).flatten(),
-                                            (side[0] - transformed.flatten())))
+                                            (side[0] - transformed).flatten()))
                     / np.linalg.norm(side[1] - side[0]))
         return (distance, side_name)
 

@@ -407,7 +407,7 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
                                          side[0], side[1] - side[0])
         if intersection is None or not between(0, 1, intersection[1]):
             return # line segments do not intersect
-        translation = (intersection * direction_vector(angle))
+        translation = intersection[0] * direction_vector(angle)
         original = self._sensors["pose"][robot_name]
         virtual_robot.set_pose(Pose(original.Coord + translation, original.Angle))
     def __guess_rect_and_side(self, point, rectangle_id=None, rectangle_side=None,

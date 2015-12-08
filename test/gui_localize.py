@@ -157,9 +157,10 @@ class GUILocalize(Simulator):
         for i in range(0, self._num_robots):
             yield VirtualRobot("Virtual {}".format(i), servo_angle=(0.5 * np.pi))
     def _populate_world(self):
-        self._world.add_border(Border(0, color=0, center_x=2.5, y_length=8))
-        self._world.add_wall(Wall(1, center_y=12, x_length=20))
-        self._world.add_package(Package(2, center_x=-20))
+        self._world.add_wall(Wall(0, center_y=12, x_length=20))
+        self._world.add_wall(Wall(1, center_x=12, x_length=4, y_length=20))
+        self._world.add_wall(Wall(2, center_y=-12, x_length=20))
+        self._world.add_wall(Wall(3, center_x=-12, x_length=4, y_length=20))
     def _start_simulator(self):
         self.__stop_button.config(state="disabled")
         self.__set_motion_buttons_state("disabled")
@@ -202,18 +203,18 @@ class GUILocalize(Simulator):
 
     # Rotate button callbacks
     def _rotate90(self):
-        command = Motion("RotateBy", "DeadReckoning", None, 20, 0.5 * np.pi)
+        command = Motion("RotateBy", "DeadReckoning", None, 10, 0.5 * np.pi)
         self.__broadcast_motion_command(command)
     def _rotate_90(self):
-        command = Motion("RotateBy", "DeadReckoning", None, 20, -0.5 * np.pi)
+        command = Motion("RotateBy", "DeadReckoning", None, 10, -0.5 * np.pi)
         self.__broadcast_motion_command(command)
 
     # Move button callbacks
     def _move4(self):
-        command = Motion("MoveBy", "DeadReckoning", 1, 20, 4)
+        command = Motion("MoveBy", "DeadReckoning", 1, 10, 4)
         self.__broadcast_motion_command(command)
     def _move_4(self):
-        command = Motion("MoveBy", "DeadReckoning", -1, 20, 4)
+        command = Motion("MoveBy", "DeadReckoning", -1, 10, 4)
         self.__broadcast_motion_command(command)
 
     # Localize button callbacks
