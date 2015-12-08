@@ -435,7 +435,7 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
     # Implementation of parent abstract methods
     def _react(self, signal):
         if signal.Namespace in self._robots:
-            if signal.Name == "Pose" or signal.Name == "ResetPose":
+            if signal.Name == "Pose" or signal.Name == "ResetPose" or signal.Name == "SetPose":
                 self._sensors["pose"][signal.Namespace] = signal.Data
                 self.__update_robot(signal.Namespace)
             elif signal.Name == "ScannerPose":
@@ -464,7 +464,7 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
             elif signal.Name == "LocalizePSD":
                 self.localize_psd(signal.Namespace, signal.Data[0], signal.Data[1])
         elif signal.Sender == "Package" and signal.Namespace in self._objects["package"]:
-            if signal.Name == "ResetPose":
+            if signal.Name == "ResetPose" or signal.Name == "SetPose":
                 self.__update_package(signal.Namespace, signal.Data)
     def get_pose(self):
         return Pose(to_vector(0, 0), 0)

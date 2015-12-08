@@ -39,14 +39,13 @@ class Robot(object):
         self.rotate_multiplier = 0.052 # speed multiplier
         self.floor_black = 10 # the blackest measurable value
         self.floor_white = 90 # the whitest measurable value
-        prox_profile = ((20, 16), (24, 14), (30, 12), (35, 10), (46, 8), (57, 6),
-                        (72, 4), (80, 3), (84, 2))
+        prox_profile = ((24, 16), (28, 14), (34, 12), (48, 10), (50, 8), (60, 6),
+                        (75, 4), (85, 2))
         self.prox_profile_interp = get_interpolator(prox_profile, np.nan, 2)
         prox_profile_inverse = tuple((dist, prox) for (prox, dist) in reversed(prox_profile))
         self.prox_profile_inverse_interp = get_interpolator(prox_profile_inverse, 84, np.nan)
-        psd_profile = ((35, 38), (39, 36), (42, 34), (47, 32), (51, 30), (56, 28),
-                       (60, 26), (65, 24), (70, 22), (77, 20), (86, 18), (94, 16),
-                       (106, 14), (122, 12), (144, 10), (174, 8), (192, 6))
+        psd_profile = ((64, 28), (72, 26), (74, 24), (77, 22), (86, 20), (95, 18), (104, 16),
+                       (117, 14), (132, 12), (156, 10), (186, 8), (194, 6))
         self.psd_profile_interp = get_interpolator(psd_profile, np.nan, 6)
         psd_profile_inverse = tuple((dist, psd) for (psd, dist) in reversed(psd_profile))
         self.psd_profile_inverse_interp = get_interpolator(psd_profile_inverse, 192, np.nan)
@@ -253,7 +252,7 @@ class VirtualScanner(MobileFrame):
         the first tuple member as a point and the difference between the second and first
         tuple members as the direction.
         """
-        return (to_vector(2, -1), to_vector(2.5, -1))
+        return (to_vector(2.5, -1), to_vector(3, -1))
     def get_psd_distance_coords(self, distance):
         """Returns the coordinates of the obstacle from the PSD sensor as a column vector."""
         return None if distance is None else self.get_psd_coords()[0] + to_vector(distance, 0)
@@ -352,7 +351,7 @@ class VirtualRobot(InterruptableThread, MobileFrame):
         """
         self._pose_coord = new_pose.Coord
         self._pose_angle = new_pose.Angle
-        self.broadcast(Signal("ResetPose", self.get_name(), self.get_name(), self.get_pose()))
+        self.broadcast(Signal("SetPose", self.get_name(), self.get_name(), self.get_pose()))
 
     # Implementation of parent abstract methods
     def _run(self):
