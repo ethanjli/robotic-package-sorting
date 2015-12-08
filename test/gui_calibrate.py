@@ -79,6 +79,16 @@ class GUICalibrate(Simulator):
         ttk.Combobox(rotate_multiplier_frame, name="multipliers",
                      textvariable=self.__rotate_multiplier, state="disabled",
                      values=[str(0.001 * i) for i in range(40, 81)]).pack()
+        self.__wheel_balance = tk.StringVar()
+        self.__wheel_balance.set("0")
+        self.__wheel_balance.trace("w", self._wheel_balance)
+        wheel_balance_frame = ttk.LabelFrame(multipliers_frame, name="balance",
+                                             borderwidth=2, relief="ridge",
+                                             text="Wheel Balance")
+        wheel_balance_frame.pack(side="top", fill="x")
+        ttk.Combobox(wheel_balance_frame, name="balance",
+                     textvariable=self.__wheel_balance, state="disabled",
+                     values=[str(i) for i in range(-128, 128)]).pack()
         # Commands
         commands_frame = ttk.LabelFrame(self.__calibrate_frame, name="commandsFrame",
                                         borderwidth=2, relief="ridge", text="Commands")
@@ -159,6 +169,10 @@ class GUICalibrate(Simulator):
                                                                  """.multipliers""")
         rotate_multipliers.config(state="normal")
         self._rotate_multiplier(None, None, "w")
+        wheel_balance = self.__calibrate_frame.nametowidget("""multipliersFrame.balance"""
+                                                            """.balance""")
+        wheel_balance.config(state="normal")
+        self._wheel_balance(None, None, "w")
         self.__set_motion_buttons_state("normal")
     def __set_motion_buttons_state(self, new_state):
         self.__rotate90_button.config(state=new_state)
@@ -196,6 +210,10 @@ class GUICalibrate(Simulator):
         robot = self._robots[0]
         if operation == "w":
             robot.rotate_multiplier = float(self.__rotate_multiplier.get())
+    def _wheel_balance(self, _, dummy, operation):
+        robot = self._robots[0]
+        if operation == "w":
+            robot.set_wheel_balance(int(self.__wheel_balance.get()))
 
     def __broadcast_motion_command(self, command):
         self.broadcast(Signal("Motion", self.get_name(), self._robots[0].get_name(), command))

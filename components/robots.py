@@ -139,6 +139,10 @@ class Robot(object):
         return self._hamster.get_port(_PSD_PORT)
 
     # Calibration
+    def set_wheel_balance(self, wheel_balance):
+        """Sets the wheel balance, -128 to 127 inclusive."""
+        if self._hamster is not None:
+            self._hamster.set_wheel_balance(wheel_balance)
     def to_virtual_move_speed(self, real_move_speed):
         """Calculate the virtual move speed for the given real move speed."""
         return real_move_speed * self.move_multiplier
