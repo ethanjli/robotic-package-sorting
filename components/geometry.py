@@ -143,12 +143,10 @@ def segment_transformation(from_left, from_right, to_left, to_right):
         A 3-tuple of the center of rotation, the angle to rotate about that point,
         and a vector of the subsequent translation.
     """
-    from_vec = vector_to_tuple(from_right - from_left)
-    from_mid = 0.5 * (from_right + from_left) # this will be the center of rotation
-    to_vec = vector_to_tuple(to_right - to_left)
-    return (from_mid,
-            np.arctan2(to_vec[1], to_vec[1]) - np.arctan2(from_vec[1], from_vec[0]),
-            perpendicular_to_line(from_mid, to_left, to_right))
+    midpoint = 0.5 * (from_right + from_left) # this will be the center of rotation
+    return (midpoint,
+            to_angle(to_right - to_left) - to_angle(from_right - from_left),
+            perpendicular_to_line(midpoint, to_left, to_right))
 
 class Frame(object):
     """Mix-in to support coordinate transformations from a frame."""

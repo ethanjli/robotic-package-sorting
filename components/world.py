@@ -2,11 +2,12 @@
 from collections import defaultdict
 from itertools import chain
 
-from components.util import rgb_to_hex, clip, iter_first_not_none, min_first
+from components.util import rgb_to_hex, clip, between, iter_first_not_none, min_first
 from components.messaging import Signal, Broadcaster
 from components.concurrency import Reactor
 from components.geometry import Pose, Frame, MobileFrame, Rectangle
-from components.geometry import to_vector, vector_to_tuple, vectors_to_flat, direction_vector
+from components.geometry import to_vector, vector_to_tuple, vectors_to_flat
+from components.geometry import to_angle, direction_vector
 from components.geometry import transformation, compose
 from components.geometry import transform, transform_x, transform_y, transform_all, rotate_pose
 from components.geometry import ray_distance_to, segment_transformation, line_intersection
@@ -27,6 +28,10 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
         Floor: Data should be a 2-tuple of the left and right floor colors, given as RGB 3-tuples.
         Triggers a redrawing of the floor sensors on the canvas.
         LocalizeProx: Data should be a 2-tuple of the id of the rectangle to localize to and
+        the name of the side of the rectangle to localize to ("North", "South", "East", or "West").
+        If the rectangle id is None, will guess the rectangle. If the name of the side is
+        None, will guess the side.
+        LocalizePSD: Data should be a 2-tuple of the id of the rectangle to localize to and
         the name of the side of the rectangle to localize to ("North", "South", "East", or "West").
         If the rectangle id is None, will guess the rectangle. If the name of the side is
         None, will guess the side.
@@ -156,12 +161,12 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
         self.broadcast(Signal("UpdateCoords", self.get_name(), robot_name,
                               (self._primitives["robotFloorRight"][robot_name],
                                vectors_to_flat(transformed))))
-        self.__update_robot_proximity(robot_name)
+        self.__update_proximity(robot_name)
         try:
-            self.__update_robot_psd(robot_name)
+            self.__update_psd(robot_name)
         except KeyError:
             pass
-    def __update_robot_floor(self, robot_name, floor_left, floor_right):
+    def __update_floor(self, robot_name, floor_left, floor_right):
         robot = self._robots[robot_name]
         left_rescaled = robot.to_relative_whiteness(floor_left)
         left_hex = rgb_to_hex(left_rescaled, left_rescaled, left_rescaled)
@@ -173,7 +178,7 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
         self.broadcast(Signal("UpdateConfig", self.get_name(), robot_name,
                               (self._primitives["robotFloorRight"][robot_name],
                                {"fill": right_hex, "outline": right_hex})))
-    def __update_robot_proximity(self, robot_name):
+    def __update_proximity(self, robot_name):
         robot = self._robots[robot_name]
         virtual_robot = robot.get_virtual()
         distances = (robot.to_prox_distance(self._sensors["proximityLeft"][robot_name]),
@@ -194,7 +199,7 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
         self.broadcast(Signal("UpdateCoords", self.get_name(), robot_name,
                               (self._primitives["robotProximityRight"][robot_name],
                                vectors_to_flat(transform_all(matrix, beam_coords[1])))))
-    def __update_robot_psd(self, robot_name):
+    def __update_psd(self, robot_name):
         robot = self._robots[robot_name]
         virtual_robot = robot.get_virtual()
         distance = robot.to_psd_distance(self._sensors["psd"][robot_name])
@@ -368,35 +373,61 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
         original = self._sensors["pose"][robot_name]
         rotated = rotate_pose(original, original.Coord, angle)
         virtual_robot.set_pose(Pose(rotated.Coord + translation, rotated.Angle))
-    def _localize_point(self, robot_name, point, angle, rectangle_id=None, rectangle_side=None):
+    def localize_psd(self, robot_name, rectangle_id=None, rectangle_side=None):
+        """Update the robot's position based on PSD sensor data.
+        If rectangle_id is None, guesses the rectangle to localize against.
+        If rectangle_side is None, guesses the side of the rectangle to localize against."""
+        # Find coordinates in the virtual world's frame
+        robot = self._robots[robot_name]
+        virtual_robot = robot.get_virtual()
+        distance = robot.to_psd_distance(self._sensors["psd"][robot_name])
+        sensor_coords = virtual_robot.get_scanner().get_psd_coords()
+        obstacle_coords = virtual_robot.get_scanner().get_psd_distance_coords(distance)
+        if obstacle_coords is None:
+            return
+        scanner_matrix = compose(transformation(self._sensors["pose"][robot_name]),
+                                 transformation(self._sensors["scannerPose"][robot_name]))
+        point = transform(scanner_matrix, obstacle_coords)
+        sensor_vector = transform_all(scanner_matrix, sensor_coords)
+        self._localize_point(robot_name, point, to_angle(sensor_vector[1] - sensor_vector[0]),
+                             rectangle_id, rectangle_side, "wall")
+    def _localize_point(self, robot_name, point, angle, rectangle_id=None, rectangle_side=None,
+                        rectangle_type=None):
         robot = self._robots[robot_name]
         virtual_robot = robot.get_virtual()
         # Guess rectangle if necessary
-        (rect, rectangle_side) = self.__guess_rect_and_side(point, rectangle_id, rectangle_side)
+        (rect, rectangle_side) = self.__guess_rect_and_side(point, rectangle_id,
+                                                            rectangle_side, rectangle_type)
         if rect is None or rectangle_side is None:
             return
         # Make the adjustment
         rect_matrix = rect.get_transformation()
         side = transform_all(rect_matrix, rect.get_side(rectangle_side))
-        translation = (line_intersection(point, direction_vector(angle),
-                                         side[0], side[1] - side[0])[0]
-                       * direction_vector(angle))
+        intersection = line_intersection(point, direction_vector(angle),
+                                         side[0], side[1] - side[0])
+        if intersection is None or not between(0, 1, intersection[1]):
+            return # line segments do not intersect
+        translation = (intersection * direction_vector(angle))
         original = self._sensors["pose"][robot_name]
         virtual_robot.set_pose(Pose(original.Coord + translation, original.Angle))
-    def __guess_rect_and_side(self, point, rectangle_id=None, rectangle_side=None):
+    def __guess_rect_and_side(self, point, rectangle_id=None, rectangle_side=None,
+                              rectangle_type=None):
         """Returns the Rectangle and name of the side nearest to the point, where applicable."""
         if rectangle_id is None:
-            result = self.guess_rectangle(point)
+            result = self.guess_rectangle(point, rectangle_type)
             if result is None:
                 return (None, None)
             rectangle_side = result[1]
             rectangle_id = result[2]
-        if rectangle_id in self._objects["wall"]:
-            rect = self._objects["wall"][rectangle_id]
-        elif rectangle_id in self._objects["package"]:
-            rect = self._objects["package"][rectangle_id]
+        if rectangle_type is None:
+            if rectangle_id in self._objects["wall"]:
+                rect = self._objects["wall"][rectangle_id]
+            elif rectangle_id in self._objects["package"]:
+                rect = self._objects["package"][rectangle_id]
+            else:
+                return (None, None)
         else:
-            return (None, None)
+            rect = self._objects[rectangle_type][rectangle_id]
         if rectangle_side is None:
             rectangle_side = rect.nearest_side(point)
         return (rect, rectangle_side)
@@ -410,26 +441,28 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
             elif signal.Name == "ScannerPose":
                 self._sensors["scannerPose"][signal.Namespace] = signal.Data
                 try:
-                    self.__update_robot_psd(signal.Namespace)
+                    self.__update_psd(signal.Namespace)
                 except KeyError:
                     pass
             elif signal.Name == "Floor":
-                self.__update_robot_floor(signal.Namespace, *signal.Data)
+                self.__update_floor(signal.Namespace, *signal.Data)
             elif signal.Name == "Proximity":
                 self._sensors["proximityLeft"][signal.Namespace] = signal.Data[0]
                 self._sensors["proximityRight"][signal.Namespace] = signal.Data[1]
                 try:
-                    self.__update_robot_proximity(signal.Namespace)
+                    self.__update_proximity(signal.Namespace)
                 except KeyError:
                     pass
             elif signal.Name == "PSD":
                 self._sensors["psd"][signal.Namespace] = signal.Data
                 try:
-                    self.__update_robot_psd(signal.Namespace)
+                    self.__update_psd(signal.Namespace)
                 except KeyError:
                     pass
             elif signal.Name == "LocalizeProx":
                 self.localize_prox(signal.Namespace, signal.Data[0], signal.Data[1])
+            elif signal.Name == "LocalizePSD":
+                self.localize_psd(signal.Namespace, signal.Data[0], signal.Data[1])
         elif signal.Sender == "Package" and signal.Namespace in self._objects["package"]:
             if signal.Name == "ResetPose":
                 self.__update_package(signal.Namespace, signal.Data)

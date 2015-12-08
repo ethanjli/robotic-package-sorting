@@ -97,6 +97,10 @@ class GUILocalize(Simulator):
                                         text="Prox Localize", command=self._localize_prox,
                                         state="disabled")
         self.__prox_button.pack(side="top", fill="x")
+        self.__psd_button = ttk.Button(localize_frame, name="psdLocalize",
+                                       text="PSD Localize", command=self._localize_psd,
+                                       state="disabled")
+        self.__psd_button.pack(side="top", fill="x")
 
         simulator_frame = ttk.LabelFrame(self._root, name="simulatorFrame",
                                          borderwidth=2, relief="ridge",
@@ -106,6 +110,7 @@ class GUILocalize(Simulator):
     def _initialize_threads(self):
         self._add_virtual_world_threads()
         self.register("LocalizeProx", self._world)
+        self.register("LocalizePSD", self._world)
 
         controller = PrimitiveController("MotionController", self._robots[0])
         controller.register("Moved", self)
@@ -147,6 +152,7 @@ class GUILocalize(Simulator):
         self.__move_4_button.config(state=new_state)
     def __set_localize_buttons_state(self, new_state):
         self.__prox_button.config(state=new_state)
+        self.__psd_button.config(state=new_state)
     def _generate_virtual_robots(self):
         for i in range(0, self._num_robots):
             yield VirtualRobot("Virtual {}".format(i), servo_angle=(0.5 * np.pi))
@@ -213,6 +219,9 @@ class GUILocalize(Simulator):
     # Localize button callbacks
     def _localize_prox(self):
         self.broadcast(Signal("LocalizeProx", self.get_name(), self._robots[0].get_name(),
+                              (None, None)))
+    def _localize_psd(self):
+        self.broadcast(Signal("LocalizePSD", self.get_name(), self._robots[0].get_name(),
                               (None, None)))
 
 def main():
