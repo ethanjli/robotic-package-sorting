@@ -6,7 +6,8 @@ import ttk
 import numpy as np
 
 from components.messaging import Signal
-from components.robots import VirtualRobot
+from components.geometry import Pose, to_vector
+from components.robots import VirtualRobot, centroid_to_instant_center
 from components.sensors import FilteringMonitor, VirtualMonitor
 from components.world import Border, Wall, Package
 from components.control import Motion, PrimitiveController, SimplePrimitivePlanner
@@ -155,7 +156,9 @@ class GUILocalize(Simulator):
         self.__psd_button.config(state=new_state)
     def _generate_virtual_robots(self):
         for i in range(0, self._num_robots):
-            yield VirtualRobot("Virtual {}".format(i), servo_angle=(0.5 * np.pi))
+            yield VirtualRobot("Virtual {}".format(i),
+                               pose=centroid_to_instant_center(Pose(to_vector(-2, -2), 0)),
+                               servo_angle=(0.5 * np.pi))
     def _populate_world(self):
         self._world.add_wall(Wall(0, center_y=12, x_length=20))
         self._world.add_wall(Wall(1, center_x=12, x_length=4, y_length=20))

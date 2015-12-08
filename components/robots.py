@@ -262,7 +262,7 @@ class VirtualRobot(InterruptableThread, MobileFrame):
         ScannerPose: broadcasts the current pose of the robot's Scanner.
         ResetPose: broadcasts the current pose of the robot as it is (re)initialized.
     """
-    def __init__(self, name, update_interval=0.01,
+    def __init__(self, name, update_interval=0.02,
                  pose=centroid_to_instant_center(Pose(to_vector(0, 0), 0)),
                  servo_angle=0):
         # The Coord of the input pose specifies the centroid of the robot
