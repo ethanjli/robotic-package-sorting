@@ -80,7 +80,17 @@ def transform_y(matrix, frame_y):
     """Converts y-coord in the frame to y-coord in the parent's frame."""
     return transform(matrix, to_vector(0, frame_y))[1][0]
 def transform_all(matrix, vectors):
+    """Transforms every vector in a tuple into the parent's frame."""
     return tuple(transform(matrix, vector) for vector in vectors)
+def rotate_pose(pose, rotation_center, angle):
+    """Rotates the pose about the specified point by the specified angle."""
+    center_to_pose = pose.Coord - rotation_center
+    center_to_direction = direction_vector(pose.Angle) + center_to_pose
+    rotation = transformation(Pose(to_vector(0, 0), angle))
+    transformed_pose = transform(rotation, center_to_pose)
+    transformed_direction = transform(rotation, center_to_direction)
+    transformed_angle = to_angle(transformed_direction - transformed_pose)
+    return Pose(transformed_pose + rotation_center, transformed_angle)
 
 # Geometric primitives
 def find_line_intersection(first_point, first_direction, second_point, second_direction):
@@ -106,6 +116,39 @@ def find_ray_segment_intersection(ray_point, ray_angle, segment_left, segment_ri
         return None
     else:
         return intersection[0]
+def find_perpendicular_to_line(point, line_left, line_right):
+    """Finds the vector from the point to the nearest point on the line.
+    Uses the formula from Pablo's answer at http://stackoverflow.com/questions/5227373
+    """
+    line_direction = line_right - line_left
+    line_direction = line_direction / float(np.linalg.norm(line_direction))
+    vector_projection = line_direction * np.vdot((point - line_left), line_direction)
+    return line_left + vector_projection - point
+def find_segment_transformation(from_left, from_right, to_left, to_right):
+    """Finds a transformation to move the "from" segment so that it overlaps the "to" line.
+    The transformation will rotate the "from" vector the minimum angle to become parallel with the
+    line defined by the "to" line segment, and it will translate the "from" vector the
+    minimum distance to become collinear with the line defined by the "to" line segment.
+
+    Arguments:
+        All arguments must be given as points in a common parent frame.
+        from_left: column vector of the "left" end of the line segment to be transformed.
+        from_right: column vector of the "right" end of the line segment to be transformed.
+        to_left: column vector of the "left" end of the line segment defining the target line.
+        The line segment will be rotated so that its "left" segment is closer to to_left.
+        to_right: column vector of the "right" end of the line segment defining the target line.
+        The line segment will be rotated so that its "right" segment is closer to to_right.
+
+    Return:
+        A 3-tuple of the center of rotation, the angle to rotate about that point,
+        and a vector of the subsequent translation.
+    """
+    from_vec = vector_to_tuple(from_right - from_left)
+    from_mid = 0.5 * (from_right + from_left) # this will be the center of rotation
+    to_vec = vector_to_tuple(to_right - to_left)
+    return (from_mid,
+            np.arctan2(to_vec[1], to_vec[1]) - np.arctan2(from_vec[1], from_vec[0]),
+            find_perpendicular_to_line(from_mid, to_left, to_right))
 
 class Frame(object):
     """Mix-in to support coordinate transformations from a frame."""
@@ -215,8 +258,9 @@ class Rectangle(Frame):
         transformed = transform(self.get_transformation_inverse(), point)
         side_name = self.nearest_side(transformed)
         side = self.get_side(side_name)
-        distance = ((np.cross(side[1] - side[0], side[0] - transformed)).norm()
-                    / (side[1] - side[0]).norm())
+        distance = (np.linalg.norm(np.cross((side[1] - side[0]).flatten(),
+                                            (side[0] - transformed.flatten())))
+                    / np.linalg.norm(side[1] - side[0]))
         return (distance, side_name)
 
 def ray_distance_to(rectangles, coords, angle):

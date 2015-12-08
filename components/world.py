@@ -8,8 +8,8 @@ from components.concurrency import Reactor
 from components.geometry import Pose, Frame, MobileFrame, Rectangle
 from components.geometry import to_vector, vector_to_tuple, vectors_to_flat, direction_vector
 from components.geometry import transformation, compose
-from components.geometry import transform, transform_x, transform_y, transform_all
-from components.geometry import ray_distance_to
+from components.geometry import transform, transform_x, transform_y, transform_all, rotate_pose
+from components.geometry import ray_distance_to, find_segment_transformation
 
 _FLOOR_WHITE = 90
 
@@ -26,6 +26,10 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
         Triggers a redrawing of the robot on the canvas.
         Floor: Data should be a 2-tuple of the left and right floor colors, given as RGB 3-tuples.
         Triggers a redrawing of the floor sensors on the canvas.
+        LocalizeProx: Data should be a 2-tuple of the id of the rectangle to localize to and
+        the name of the side of the rectangle to localize to ("North", "South", "East", or "West").
+        If the rectangle id is None, will guess the rectangle. If the name of the side is
+        None, will guess the side.
     """
     def __init__(self, name, world_bounds, canvas, scale=20):
         super(VirtualWorld, self).__init__(name)
@@ -331,6 +335,47 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
             return min_first(iter_first_not_none(rectangles))
         except ValueError:
             return None
+    def localize_prox(self, robot_name, rectangle_id, rectangle_side):
+        """Update the robot's position based on proximity sensor data.
+        If rectangle_id is None, guesses the rectangle to localize against.
+        If rectangle_side is None, guesses the side of the rectangle to localize against."""
+        # Find coordinates in the virtual world's frame
+        robot = self._robots[robot_name]
+        virtual_robot = robot.get_virtual()
+        distances = (robot.to_prox_distance(self._sensors["proximityLeft"][robot_name]),
+                     robot.to_prox_distance(self._sensors["proximityRight"][robot_name]))
+        obstacle_coords = list(virtual_robot.get_proximity_distance_coords(*distances))
+        robot_matrix = transformation(self._sensors["pose"][robot_name])
+        if obstacle_coords[0] is None:
+            # TODO: handle this case
+            return
+        if obstacle_coords[1] is None:
+            # TODO: handle this case
+            return
+        (prox_left, prox_right) = transform_all(robot_matrix, obstacle_coords)
+        # Guess rectangle if necessary
+        if rectangle_id is None:
+            result = self.guess_rectangle(0.5 * (prox_left + prox_right))
+            if result is None:
+                return
+            rectangle_id = result[2]
+            rectangle_side = result[1]
+        if rectangle_id in self._objects["wall"]:
+            rect = self._objects["wall"][rectangle_id]
+        elif rectangle_id in self._objects["package"]:
+            rect = self._objects["package"][rectangle_id]
+        else:
+            return
+        if rectangle_side is None:
+            rectangle_side = rect.nearest_side(prox_center)
+        # Make the adjustment
+        rect_matrix = rect.get_transformation()
+        side = transform_all(rect_matrix, rect.get_side(rectangle_side))
+        (_, angle, translation) = find_segment_transformation(prox_left, prox_right, *side)
+        # Transform everything the adjustment frame
+        original = self._sensors["pose"][robot_name]
+        rotated = rotate_pose(original, original.Coord, angle)
+        virtual_robot.set_pose(Pose(rotated.Coord + translation, rotated.Angle))
 
     # Implementation of parent abstract methods
     def _react(self, signal):
@@ -359,6 +404,8 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
                     self.__update_robot_psd(signal.Namespace)
                 except KeyError:
                     pass
+            elif signal.Name == "LocalizeProx":
+                self.localize_prox(signal.Namespace, signal.Data[0], signal.Data[1])
         elif signal.Sender == "Package" and signal.Namespace in self._objects["package"]:
             if signal.Name == "ResetPose":
                 self.__update_package(signal.Namespace, signal.Data)

@@ -340,6 +340,15 @@ class VirtualRobot(InterruptableThread, MobileFrame):
     def get_scanner(self):
         """Returns the robot's VirtualScanner."""
         return self._scanner
+    # Manual pose adjustment
+    def set_pose(self, new_pose):
+        """Manually adjust the pose.
+        Behaves like a reset_pose call in that it broadcasts a Signal indicating
+        a potentially large change in the pose.
+        """
+        self._pose_coord = new_pose.Coord
+        self._pose_angle = new_pose.Angle
+        self.broadcast(Signal("ResetPose", self.get_name(), self.get_name(), self.get_pose()))
 
     # Implementation of parent abstract methods
     def _run(self):
