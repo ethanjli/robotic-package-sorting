@@ -1,5 +1,6 @@
 """Controls robot motion using sensors and simulation data."""
 from collections import namedtuple, defaultdict
+from time import sleep
 
 import numpy as np
 
@@ -10,6 +11,8 @@ from components.geometry import normalize_angle, positive_angle, direction_vecto
 from components.geometry import to_vector, vector_to_tuple, Pose
 
 Motion = namedtuple("Motion", ["Name", "Control", "Direction", "Speed", "Data"])
+Localize = namedtuple("Localize", ["Name", "Rectangle", "Side", "Data"])
+Pause = namedtuple("Pause", ["Name", "Data"])
 
 class PrimitiveController(Reactor, Broadcaster):
     """Takes primitive motion control commands and executes them.
@@ -22,6 +25,7 @@ class PrimitiveController(Reactor, Broadcaster):
         ResetPose: Data should be a Pose. Will update the Controller's records of the
         robot's Pose.
         Motion: Data should be a Motion command.
+        Localize: Data should be a Localize command.
         Stop: stops the robot and cancels the active Motion command, if applicable.
         Pause: stops the robot and pauses the active Motion command, if applicable.
         Resume: resumes the paused active Motion command, if applicable.
@@ -68,6 +72,16 @@ class PrimitiveController(Reactor, Broadcaster):
             1: the robot rotates counterclockwise.
             -1: the robot rotates clockwise.
 
+    Localize Commands:
+        Proximity: localize using the left and/or right proximity sensors.
+        PSD: localize using the PSD scanner. Data should be the servo angle, or None to use the
+        previous servo angle.
+    Localize Command Rectangle should be the index of the in the world to
+    localize against, or None to guess which rectangle to localize against.
+    Localize Command Side should be "North", "South", "East", or "West",
+    specifying the side of the rectangle to localize against, or None to guess
+    which side of the rectangle to localize against.
+
     Signals Broadcast:
         Moved: sent when the last command has been executed. Data is a 2-tuple of the
         last command and the current pose.
@@ -81,9 +95,11 @@ class PrimitiveController(Reactor, Broadcaster):
             monitor.register("Floor", self)
             monitor.register("Proximity", self)
             monitor.register("PSD", self)
+            self.register("Servo", monitor)
         self._robot_pose = robot.get_virtual().get_pose()
         self._previous_pose = self._robot_pose
         self._target_pose = None
+        self._waiting_psd_localization = None
         self._distance_criterion = None
         self._last_command = None
         self._sensors = {
@@ -123,6 +139,13 @@ class PrimitiveController(Reactor, Broadcaster):
             self._sensors["proximityRight"][signal.Namespace] = signal.Data[1]
         elif signal.Name == "PSD":
             self._sensors["psd"][signal.Namespace] = signal.Data
+            if signal.Data is not None and self._waiting_psd_localization is not None:
+                self.broadcast(Signal("LocalizePSD", self.get_name(), self._robot.get_name(),
+                                      (self._waiting_psd_localization.Rectangle,
+                                       self._waiting_psd_localization.Side)))
+                self._waiting_psd_localization = None
+        elif signal.Name == "Localize":
+            self.__react_localize(signal.Data)
         elif signal.Name == "Motion" and signal.Data.Control == "DeadReckoning":
             self.__react_motion_deadreckoning(signal.Data)
         elif signal.Name == "Motion" and signal.Data.Control == "SensorDistance":
@@ -178,6 +201,17 @@ class PrimitiveController(Reactor, Broadcaster):
             self._last_command = command
             self._distance_criterion = command.Data
             self.__rotate_until(command.Direction, command.Speed)
+    def __react_localize(self, command):
+        if command.Name == "Proximity":
+            self.broadcast(Signal("LocalizeProx", self.get_name(), self._robot.get_name(),
+                                  (command.Rectangle, command.Side)))
+        elif command.Name == "PSD":
+            if command.Data is not None:
+                self.broadcast(Signal("Servo", self.get_name(), self._robot.get_name(),
+                                      command.Data))
+            self._waiting_psd_localization = command
+            self.broadcast(Signal("LocalizePSD", self.get_name(), self._robot.get_name(),
+                                  (command.Rectangle, command.Side)))
     def __reached_pose(self):
         if self._target_pose.Angle is not None:
             target = self._target_pose.Angle
@@ -230,13 +264,16 @@ class SimplePrimitivePlanner(Reactor, Broadcaster):
         of its robot.
         Start: instructs the planner to start sending motion commands.
         Reset: resets the planner to its initial state and discards all waiting Signals.
+        SetPose: indicates that the robot has finished localizing.
 
     Signals Sent:
         Motion: broadcasts a motion command.
+        Localize: broadcasts a localization command.
         Stop: broadcasts a signal to stop the controller when resetting the planner.
     """
     def __init__(self, name, robot):
         super(SimplePrimitivePlanner, self).__init__(name)
+        robot.get_virtual().register("SetPose", self)
         self._robot = robot
         self.__command_generator = self._generate_commands()
         self._active = False
@@ -249,7 +286,7 @@ class SimplePrimitivePlanner(Reactor, Broadcaster):
         if signal.Name == "Start":
             self._broadcast_next_command()
             self._active = True
-        elif signal.Name == "Moved" and self._active:
+        elif (signal.Name == "Moved" or signal.Name == "SetPose") and self._active:
             self._broadcast_next_command()
         elif signal.Name == "Reset":
             self.broadcast(Signal("Stop", self.get_name(), self._robot.get_name(), None))
@@ -257,9 +294,20 @@ class SimplePrimitivePlanner(Reactor, Broadcaster):
             self.clear()
             self._active = False
     def _broadcast_next_command(self):
-        command = self.__command_generator.send(True)
-        if command is not None:
+        command = None
+        while command is None:
+            command = self.__command_generator.send(True)
+            if command is None:
+                return
+            if type(command).__name__ == "Pause":
+                print(command)
+                sleep(command.Data)
+                command = None
+        print(command)
+        if type(command).__name__ == "Motion":
             self.broadcast(Signal("Motion", self.get_name(), self._robot.get_name(), command))
+        elif type(command).__name__ == "Localize":
+            self.broadcast(Signal("Localize", self.get_name(), self._robot.get_name(), command))
 
     # Abstract methods
     def _generate_commands(self):
