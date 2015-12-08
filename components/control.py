@@ -1,5 +1,5 @@
 """Controls robot motion using sensors and simulation data."""
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 
 import numpy as np
 
@@ -25,6 +25,9 @@ class PrimitiveController(Reactor, Broadcaster):
         Stop: stops the robot and cancels the active Motion command, if applicable.
         Pause: stops the robot and pauses the active Motion command, if applicable.
         Resume: resumes the paused active Motion command, if applicable.
+        Proximity: Data should be a 2-tuple of the left and right proximity values.
+        PSD: Data should be a positive int of the PSD scanner value.
+        Floor: Data should be a 2-tuple of the left and right floor values.
 
     Motion Commands:
         MoveTo: attempt to move in the robot's current direction to the target x-coord, y-coord,
@@ -41,16 +44,29 @@ class PrimitiveController(Reactor, Broadcaster):
         should be a 2-tuple of the target x and y coordinates.
         RotateBy: rotate by the specified relative ccw angle change. Data should be a
         positive or negative angle in radians.
+        MoveUntil: move in the robot's current direction until the specified criterion is met.
+        See the SensorDistance control mode for a description of the criterion.
+        RotateUntil: rotate in the specified direction until the specified criterion is met.
+        See the SensorDistance control mode for a description of the criterion.
     Motion Command Control modes:
         DeadReckoning: use only the virtual robot's position for motion control.
+        Associated with MoveTo, MoveBy, RotateTo, RotateTowards, RotateBy.
+        SensorDistance: stop the motion when some criterion involving sensor data is met.
+        Associated with MoveUntil, RotateUntil. Stopping criterion should be given as the
+        Data field of the command, and should be a function returning a boolean value and
+        taking as arguments the left proximity distance, right proximity distance, and
+        PSD distance.
     Motion Command Speed should be a positive integer between 0 and 100.
     Motion Command Directions:
-        MoveTo, MoveBy:
+        MoveTo, MoveBy, MoveUntil:
             1: the robot moves forwards to the target.
             -1: the robot moves in reverse to the target.
         RotateTowards:
             1: the robot's front end will point towards the target.
             -1: the robot's rear end will point towards the target.
+        RotateUntil:
+            1: the robot rotates counterclockwise.
+            -1: the robot rotates clockwise.
 
     Signals Broadcast:
         Moved: sent when the last command has been executed. Data is a 2-tuple of the
@@ -64,7 +80,15 @@ class PrimitiveController(Reactor, Broadcaster):
         self._robot_pose = robot.get_virtual().get_pose()
         self._previous_pose = self._robot_pose
         self._target_pose = None
+        self._distance_criterion = None
         self._last_command = None
+        self._sensors = {
+            "floorLeft": defaultdict(lambda: None),
+            "floorRight": defaultdict(lambda: None),
+            "proximityLeft": defaultdict(lambda: None),
+            "proximityRight": defaultdict(lambda: None),
+            "psd": defaultdict(lambda: None)
+        }
 
     # Implementation of parent abstract methods
     def _react(self, signal):
@@ -87,18 +111,30 @@ class PrimitiveController(Reactor, Broadcaster):
             self._previous_pose = self._robot_pose
         elif signal.Name == "Pose":
             self.__update_pose(signal.Data)
+        elif signal.Name == "Floor":
+            self._sensors["floorLeft"][signal.Namespace] = signal.Data[0]
+            self._sensors["floorRight"][signal.Namespace] = signal.Data[1]
+        elif signal.Name == "Proximity":
+            self._sensors["proximityLeft"][signal.Namespace] = signal.Data[0]
+            self._sensors["proximityRight"][signal.Namespace] = signal.Data[1]
+        elif signal.Name == "PSD":
+            self._sensors["psd"][signal.Namespace] = signal.Data
         elif signal.Name == "Motion" and signal.Data.Control == "DeadReckoning":
             self.__react_motion_deadreckoning(signal.Data)
+        elif signal.Name == "Motion" and signal.Data.Control == "SensorDistance":
+            self.__react_motion_sensordistance(signal.Data)
     def __update_pose(self, pose):
         self._previous_pose = self._robot_pose
         self._robot_pose = pose
-        if self._target_pose is not None and self.__reached_pose():
+        if ((self._target_pose is not None and self.__reached_pose())
+            or self._distance_criterion is not None and self.__fulfilled_distance_criterion()):
             self.__finish_motion(True)
     def __finish_motion(self, whether_broadcast):
         if whether_broadcast:
             self.broadcast(Signal("Moved", self.get_name(), self._robot.get_name(),
                                   (self._last_command, self._robot_pose)))
         self._target_pose = None
+        self._distance_criterion = None
         self._robot.move(0)
     def __react_motion_deadreckoning(self, command):
         if command.Name == "MoveTo":
@@ -129,6 +165,15 @@ class PrimitiveController(Reactor, Broadcaster):
             if command.Direction == -1:
                 target_angle = normalize_angle(target_angle + np.pi)
             self.__rotate_to(command.Speed, target_angle)
+    def __react_motion_sensordistance(self, command):
+        if command.Name == "MoveUntil":
+            self._last_command = command
+            self._distance_criterion = command.Data
+            self.__move_until(command.Direction, command.Speed)
+        elif command.Name == "RotateUntil":
+            self._last_command = command
+            self._distance_criterion = command.Data
+            self.__rotate_until(command.Direction, command.Speed)
     def __reached_pose(self):
         if self._target_pose.Angle is not None:
             target = self._target_pose.Angle
@@ -142,6 +187,13 @@ class PrimitiveController(Reactor, Broadcaster):
             within_x = target[0] is None or within(previous[0], current[0], target[0])
             within_y = target[1] is None or within(previous[1], current[1], target[1])
             return within_x and within_y
+    def __fulfilled_distance_criterion(self):
+        robot = self._robot
+        robot_name = robot.get_name()
+        prox_left = robot.to_prox_distance(self._sensors["proximityLeft"][robot_name])
+        prox_right = robot.to_prox_distance(self._sensors["proximityRight"][robot_name])
+        psd = robot.to_psd_distance(self._sensors["psd"][robot_name])
+        return self._distance_criterion(prox_left, prox_right, psd)
     def __move_to(self, direction, speed, target):
         self._target_pose = Pose(target, None)
         if self.__reached_pose():
@@ -155,6 +207,16 @@ class PrimitiveController(Reactor, Broadcaster):
             self.__finish_motion(True)
         else:
             self._robot.rotate(int(speed * np.sign(delta)))
+    def __move_until(self, direction, speed):
+        if self.__fulfilled_distance_criterion():
+            self.__finish_motion(True)
+        else:
+            self._robot.move(abs(speed) * direction)
+    def __rotate_until(self, direction, speed):
+        if self.__fulfilled_distance_criterion():
+            self.__finish_motion(True)
+        else:
+            self._robot.rotate(abs(speed) * direction)
 
 class SimplePrimitivePlanner(Reactor, Broadcaster):
     """Sequentially broadcasts motion commands to a PrimitiveController.
@@ -206,3 +268,4 @@ class SimplePrimitivePlanner(Reactor, Broadcaster):
             The next motion command for the PrimitiveController.
         """
         yield Motion(None, None, None, None, None)
+
