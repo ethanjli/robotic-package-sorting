@@ -11,7 +11,7 @@ from components.util import clip
 from components.robots import VirtualRobot, centroid_to_instant_center
 from components.sensors import FilteringMonitor, VirtualMonitor
 from components.world import Border, Wall, Package
-from components.control import Motion, Localize, Pause
+from components.control import Motion, Localize, Pause, Wait, Finished
 from components.control import PrimitiveController, SimplePrimitivePlanner
 from components.app import Simulator
 
@@ -21,20 +21,26 @@ class DistributePlanner(SimplePrimitivePlanner):
         commands = [
             Pause("Pause", 1),
             # Move to position to push box up
+            Wait("Wait"),
             Motion("RotateTowards", "DeadReckoning", 1, 20, (0, -6)),
             Motion("MoveTo", "DeadReckoning", 1, 20, (0, None)),
             Motion("RotateTowards", "DeadReckoning", 1, 20, (0, 10)),
             # Push box up
+            Motion("MoveTo", "DeadReckoning", 1, 20, (None, 0)),
+            Finished("Finished"),
             Motion("MoveTo", "DeadReckoning", 1, 20, (None, 8.5)),
             # Move to home
             Motion("MoveTo", "DeadReckoning", -1, 20, (None, 6)),
             Motion("RotateTowards", "DeadReckoning", -1, 20, (-6.5, 6)),
             Motion("MoveTo", "DeadReckoning", -1, 20, (-6.5, None)),
             # Move to position to push box down
+            Wait("Wait"),
             Motion("RotateTowards", "DeadReckoning", 1, 20, (0, 6)),
             Motion("MoveTo", "DeadReckoning", 1, 20, (0, None)),
             Motion("RotateTowards", "DeadReckoning", 1, 20, (0, -10)),
             # Push box down
+            Motion("MoveTo", "DeadReckoning", 1, 20, (None, 0)),
+            Finished("Finished"),
             Motion("MoveTo", "DeadReckoning", 1, 20, (None, -8.5)),
             # Move to home
             Motion("MoveTo", "DeadReckoning", -1, 20, (None, -6)),
@@ -54,10 +60,14 @@ class DeliverPlanner(SimplePrimitivePlanner):
         commands = [
             Pause("Pause", 1),
             # Push box 1
+            #Wait("Wait"),
             Motion("MoveTo", "DeadReckoning", 1, 20, (4.5, None)),
+            Finished("Finished"),
             Motion("MoveTo", "DeadReckoning", -1, 20, (24.5, None)),
             # Push box 2
+            Wait("Wait"),
             Motion("MoveTo", "DeadReckoning", 1, 20, (4.5, None)),
+            Finished("Finished"),
             Motion("MoveTo", "DeadReckoning", -1, 20, (24.5, None)),
             None
         ]
@@ -195,6 +205,9 @@ class GUISort(Simulator):
         self.register("Start", planner_1)
         self.register("Reset", planner_1)
         self._add_thread(planner_1)
+
+        planner_0.register("Continue", planner_1)
+        planner_1.register("Continue", planner_0)
     def _connect_post(self):
         self._change_reset_button("Reset")
         self._enable_start_button()
