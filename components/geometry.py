@@ -93,30 +93,30 @@ def rotate_pose(pose, rotation_center, angle):
     return Pose(transformed_pose + rotation_center, transformed_angle)
 
 # Geometric primitives
-def find_line_intersection(first_point, first_direction, second_point, second_direction):
+def line_intersection(first_point, first_direction, second_point, second_direction):
     """Finds the intersection (if any) between two lines defined by their points and directions.
     Uses the algorithm outlined in Gareth Rees's answer at
     http://stackoverflow.com/questions/563198
     """
-    cross_direction = np.cross(first_direction, second_direction, axis=0)
+    cross_direction = np.cross(first_direction.flatten(), second_direction.flatten())
     difference_point = second_point - first_point
     if cross_direction == 0:
         return None # Lines are collinear or parallel
     second_location = float(np.cross(difference_point, first_direction, axis=0)) / cross_direction
     first_location = float(np.cross(difference_point, second_direction, axis=0)) / cross_direction
-    return (first_location[0], second_location[0])
-def find_ray_segment_intersection(ray_point, ray_angle, segment_left, segment_right):
+    return (first_location, second_location)
+def ray_segment_intersection(ray_point, ray_angle, segment_left, segment_right):
     """Finds the intersection (if any) between the ray and the segment defined by two endpoints.
     Uses the algorithm outlined in Gareth Rees's answer at
     http://stackoverflow.com/questions/14307158
     """
-    intersection = find_line_intersection(ray_point, direction_vector(ray_angle),
-                                          segment_left, segment_right - segment_left)
+    intersection = line_intersection(ray_point, direction_vector(ray_angle),
+                                     segment_left, segment_right - segment_left)
     if intersection is None or intersection[0] < 0 or not between(0, 1, intersection[1]):
         return None
     else:
         return intersection[0]
-def find_perpendicular_to_line(point, line_left, line_right):
+def perpendicular_to_line(point, line_left, line_right):
     """Finds the vector from the point to the nearest point on the line.
     Uses the formula from Pablo's answer at http://stackoverflow.com/questions/5227373
     """
@@ -124,7 +124,7 @@ def find_perpendicular_to_line(point, line_left, line_right):
     line_direction = line_direction / float(np.linalg.norm(line_direction))
     vector_projection = line_direction * np.vdot((point - line_left), line_direction)
     return line_left + vector_projection - point
-def find_segment_transformation(from_left, from_right, to_left, to_right):
+def segment_transformation(from_left, from_right, to_left, to_right):
     """Finds a transformation to move the "from" segment so that it overlaps the "to" line.
     The transformation will rotate the "from" vector the minimum angle to become parallel with the
     line defined by the "to" line segment, and it will translate the "from" vector the
@@ -148,7 +148,7 @@ def find_segment_transformation(from_left, from_right, to_left, to_right):
     to_vec = vector_to_tuple(to_right - to_left)
     return (from_mid,
             np.arctan2(to_vec[1], to_vec[1]) - np.arctan2(from_vec[1], from_vec[0]),
-            find_perpendicular_to_line(from_mid, to_left, to_right))
+            perpendicular_to_line(from_mid, to_left, to_right))
 
 class Frame(object):
     """Mix-in to support coordinate transformations from a frame."""
@@ -237,13 +237,20 @@ class Rectangle(Frame):
             return "East"
         elif slope * point[0] < -abs(point[1]):
             return "West"
-    def ray_distance_to(self, ray_point, ray_angle):
+    def ray_distance_to(self, ray_point, ray_angle, side=None):
         """Returns the distance to the Rectangle from the given ray, if the ray intersects.
         The ray should be given in the parent frame as a column vector and an angle.
-        Returns a 2-tuple of the actual distance and the name of the intersecting side."""
+        Returns a 2-tuple of the actual distance and the name of the intersecting side.
+        If a side is specified, finds the ray distance to that side, rather than the distance
+        to the first side the ray intersects.
+        """
         matrix = self.get_transformation()
-        distances = tuple((find_ray_segment_intersection(ray_point, ray_angle,
-                                                         *transform_all(matrix, side)), side_name)
+        if side is not None:
+            distance = ray_segment_intersection(ray_point, ray_angle,
+                                                *transform_all(matrix, self.get_side(side)))
+            return (distance, side)
+        distances = tuple((ray_segment_intersection(ray_point, ray_angle,
+                                                    *transform_all(matrix, side)), side_name)
                           for (side_name, side) in self._sides.items())
         try:
             return min_first(iter_first_not_none(distances))

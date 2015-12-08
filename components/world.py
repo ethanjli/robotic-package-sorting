@@ -9,7 +9,7 @@ from components.geometry import Pose, Frame, MobileFrame, Rectangle
 from components.geometry import to_vector, vector_to_tuple, vectors_to_flat, direction_vector
 from components.geometry import transformation, compose
 from components.geometry import transform, transform_x, transform_y, transform_all, rotate_pose
-from components.geometry import ray_distance_to, find_segment_transformation
+from components.geometry import ray_distance_to, segment_transformation, line_intersection
 
 _FLOOR_WHITE = 90
 
@@ -335,7 +335,7 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
             return min_first(iter_first_not_none(rectangles))
         except ValueError:
             return None
-    def localize_prox(self, robot_name, rectangle_id, rectangle_side):
+    def localize_prox(self, robot_name, rectangle_id=None, rectangle_side=None):
         """Update the robot's position based on proximity sensor data.
         If rectangle_id is None, guesses the rectangle to localize against.
         If rectangle_side is None, guesses the side of the rectangle to localize against."""
@@ -344,38 +344,62 @@ class VirtualWorld(Reactor, Broadcaster, Frame):
         virtual_robot = robot.get_virtual()
         distances = (robot.to_prox_distance(self._sensors["proximityLeft"][robot_name]),
                      robot.to_prox_distance(self._sensors["proximityRight"][robot_name]))
-        obstacle_coords = list(virtual_robot.get_proximity_distance_coords(*distances))
+        obstacle_coords = virtual_robot.get_proximity_distance_coords(*distances)
         robot_matrix = transformation(self._sensors["pose"][robot_name])
-        if obstacle_coords[0] is None:
-            # TODO: handle this case
-            return
-        if obstacle_coords[1] is None:
-            # TODO: handle this case
+        if obstacle_coords[0] is None or obstacle_coords[1] is None:
+            angle = self._sensors["pose"][robot_name].Angle
+            if obstacle_coords[0] is not None:
+                self._localize_point(robot_name, transform(robot_matrix, obstacle_coords[0]),
+                                     angle, rectangle_id, rectangle_side)
+            elif obstacle_coords[1] is not None:
+                self._localize_point(robot_name, transform(robot_matrix, obstacle_coords[1]),
+                                     angle, rectangle_id, rectangle_side)
             return
         (prox_left, prox_right) = transform_all(robot_matrix, obstacle_coords)
         # Guess rectangle if necessary
+        (rect, rectangle_side) = self.__guess_rect_and_side(0.5 * (prox_left + prox_right),
+                                                            rectangle_id, rectangle_side)
+        if rect is None or rectangle_side is None:
+            return
+        # Make the adjustment
+        rect_matrix = rect.get_transformation()
+        side = transform_all(rect_matrix, rect.get_side(rectangle_side))
+        (_, angle, translation) = segment_transformation(prox_left, prox_right, *side)
+        original = self._sensors["pose"][robot_name]
+        rotated = rotate_pose(original, original.Coord, angle)
+        virtual_robot.set_pose(Pose(rotated.Coord + translation, rotated.Angle))
+    def _localize_point(self, robot_name, point, angle, rectangle_id=None, rectangle_side=None):
+        robot = self._robots[robot_name]
+        virtual_robot = robot.get_virtual()
+        # Guess rectangle if necessary
+        (rect, rectangle_side) = self.__guess_rect_and_side(point, rectangle_id, rectangle_side)
+        if rect is None or rectangle_side is None:
+            return
+        # Make the adjustment
+        rect_matrix = rect.get_transformation()
+        side = transform_all(rect_matrix, rect.get_side(rectangle_side))
+        translation = (line_intersection(point, direction_vector(angle),
+                                         side[0], side[1] - side[0])[0]
+                       * direction_vector(angle))
+        original = self._sensors["pose"][robot_name]
+        virtual_robot.set_pose(Pose(original.Coord + translation, original.Angle))
+    def __guess_rect_and_side(self, point, rectangle_id=None, rectangle_side=None):
+        """Returns the Rectangle and name of the side nearest to the point, where applicable."""
         if rectangle_id is None:
-            result = self.guess_rectangle(0.5 * (prox_left + prox_right))
+            result = self.guess_rectangle(point)
             if result is None:
-                return
-            rectangle_id = result[2]
+                return (None, None)
             rectangle_side = result[1]
+            rectangle_id = result[2]
         if rectangle_id in self._objects["wall"]:
             rect = self._objects["wall"][rectangle_id]
         elif rectangle_id in self._objects["package"]:
             rect = self._objects["package"][rectangle_id]
         else:
-            return
+            return (None, None)
         if rectangle_side is None:
-            rectangle_side = rect.nearest_side(prox_center)
-        # Make the adjustment
-        rect_matrix = rect.get_transformation()
-        side = transform_all(rect_matrix, rect.get_side(rectangle_side))
-        (_, angle, translation) = find_segment_transformation(prox_left, prox_right, *side)
-        # Transform everything the adjustment frame
-        original = self._sensors["pose"][robot_name]
-        rotated = rotate_pose(original, original.Coord, angle)
-        virtual_robot.set_pose(Pose(rotated.Coord + translation, rotated.Angle))
+            rectangle_side = rect.nearest_side(point)
+        return (rect, rectangle_side)
 
     # Implementation of parent abstract methods
     def _react(self, signal):
