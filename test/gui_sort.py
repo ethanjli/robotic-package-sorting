@@ -1,6 +1,7 @@
 """Script to sort boxes."""
 import sys
 import Tkinter as tk
+import tkMessageBox
 import ttk
 
 import numpy as np
@@ -27,7 +28,7 @@ class DistributePlanner(SimplePrimitivePlanner):
             Motion("RotateTowards", "DeadReckoning", 1, 20, (0, 10)),
             # Push box up
             Motion("MoveTo", "DeadReckoning", 1, 20, (None, 0)),
-            Finished("Finished"),
+            Finished("Finished", "Robot 1"),
             Motion("MoveTo", "DeadReckoning", 1, 20, (None, 8.5)),
             # Move to home
             Motion("MoveTo", "DeadReckoning", -1, 20, (None, 6)),
@@ -40,7 +41,7 @@ class DistributePlanner(SimplePrimitivePlanner):
             Motion("RotateTowards", "DeadReckoning", 1, 20, (0, -10)),
             # Push box down
             Motion("MoveTo", "DeadReckoning", 1, 20, (None, 0)),
-            Finished("Finished"),
+            Finished("Finished", "Robot 1"),
             Motion("MoveTo", "DeadReckoning", 1, 20, (None, -8.5)),
             # Move to home
             Motion("MoveTo", "DeadReckoning", -1, 20, (None, -6)),
@@ -60,14 +61,15 @@ class DeliverPlanner(SimplePrimitivePlanner):
         commands = [
             Pause("Pause", 1),
             # Push box 1
-            #Wait("Wait"),
-            Motion("MoveTo", "DeadReckoning", 1, 20, (4.5, None)),
-            Finished("Finished"),
+            Motion("MoveTo", "DeadReckoning", 1, 20, (5, None)),
+            Finished("Finished", "Robot 0"),
             Motion("MoveTo", "DeadReckoning", -1, 20, (24.5, None)),
+            Finished("Finished", "GUISort"),
             # Push box 2
             Wait("Wait"),
-            Motion("MoveTo", "DeadReckoning", 1, 20, (4.5, None)),
-            Finished("Finished"),
+            Wait("Wait"),
+            Motion("MoveTo", "DeadReckoning", 1, 20, (5, None)),
+            Finished("Finished", "Robot 0"),
             Motion("MoveTo", "DeadReckoning", -1, 20, (24.5, None)),
             None
         ]
@@ -87,11 +89,15 @@ class GUISort(Simulator):
 
     # Implementing parent abstract methods
     def _react_simulator(self, signal):
+        if signal.Name == "Continue":
+            print(self.get_name(), signal.Data)
         if signal.Name == "Moved":
             self.__set_motion_buttons_state("normal")
             self.__pauseresume_button.config(state="disabled", text="Pause")
         elif signal.Name == "Motion":
             self.__set_motion_buttons_state("disabled")
+        elif signal.Name == "Continue" and signal.Data == self.get_name():
+            self._ask_another_box()
     def _initialize_widgets(self):
         toolbar_frame = ttk.Frame(self._root, name="toolbarFrame")
         toolbar_frame.pack(side="top", fill="x")
@@ -145,7 +151,7 @@ class GUISort(Simulator):
                                          borderwidth=2, relief="ridge",
                                          text="Simulator")
         simulator_frame.pack(fill="both", expand="yes")
-        self._initialize_simulator_widgets(simulator_frame, [-20, -25, 40, 25], 10)
+        self._initialize_simulator_widgets(simulator_frame, [-20, -20, 40, 20], 10)
     def _initialize_threads(self):
         self._add_virtual_world_threads()
 
@@ -208,6 +214,8 @@ class GUISort(Simulator):
 
         planner_0.register("Continue", planner_1)
         planner_1.register("Continue", planner_0)
+        planner_1.register("Continue", self)
+        self.register("Continue", planner_1)
     def _connect_post(self):
         self._change_reset_button("Reset")
         self._enable_start_button()
@@ -225,10 +233,10 @@ class GUISort(Simulator):
         self.__move65_button.config(state=new_state)
         self.__move_65_button.config(state=new_state)
     def _generate_virtual_robots(self):
-        yield VirtualRobot("Virtual 0",
+        yield VirtualRobot("Robot 0",
                            pose=centroid_to_instant_center(Pose(to_vector(-6, -6), 0)),
                            servo_angle=(0.5 * np.pi))
-        yield VirtualRobot("Virtual 1",
+        yield VirtualRobot("Robot 1",
                            pose=centroid_to_instant_center(Pose(to_vector(24, 0), np.pi)),
                            servo_angle=(0.5 * np.pi))
     def _populate_world(self):
@@ -298,9 +306,14 @@ class GUISort(Simulator):
         command = Motion("MoveBy", "DeadReckoning", -1, 20, 6.5)
         self.__broadcast_motion_command(command)
 
+    # Dialogue boxes
+    def _ask_another_box(self):
+        if tkMessageBox.askokcancel("Package Sorter", "Please add the next box."):
+            self.broadcast(Signal("Continue", self.get_name(), self._robots[1].get_name(), "Robot 1"))
+
 def main():
     """Runs test."""
-    gui = GUISort()
+    gui = GUISort("GUISort")
     gui.start()
 
 if __name__ == "__main__":

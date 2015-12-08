@@ -14,7 +14,7 @@ Motion = namedtuple("Motion", ["Name", "Control", "Direction", "Speed", "Data"])
 Localize = namedtuple("Localize", ["Name", "Rectangle", "Side", "Data"])
 Pause = namedtuple("Pause", ["Name", "Data"])
 Wait = namedtuple("Wait", ["Name"])
-Finished = namedtuple("Finished", ["Name"])
+Finished = namedtuple("Finished", ["Name", "Target"])
 
 class PrimitiveController(Reactor, Broadcaster):
     """Takes primitive motion control commands and executes them.
@@ -267,7 +267,8 @@ class SimplePrimitivePlanner(Reactor, Broadcaster):
         Start: instructs the planner to start sending motion commands.
         Reset: resets the planner to its initial state and discards all waiting Signals.
         SetPose: indicates that the robot has finished localizing.
-        Continue: resumes a planner that is waiting (from a "Wait" command).
+        Continue: resumes a planner that is waiting (from a "Wait" command). The target of the
+        continue signal must match the robot's name.
 
     Signals Sent:
         Motion: broadcasts a motion command.
@@ -287,7 +288,7 @@ class SimplePrimitivePlanner(Reactor, Broadcaster):
 
     # Implementation of parent abstract methods
     def _react(self, signal):
-        if signal.Name == "Continue":
+        if signal.Name == "Continue" and signal.Data == self._robot.get_name():
             self._broadcast_next_command()
             return
         if not signal.Namespace == self._robot.get_name():
@@ -314,13 +315,10 @@ class SimplePrimitivePlanner(Reactor, Broadcaster):
                 command = None
             elif type(command).__name__ == "Finished":
                 self.broadcast(Signal("Continue", self.get_name(), self._robot.get_name(),
-                                      command.Name))
+                                      command.Target))
                 command = None
         if type(command).__name__ == "Wait":
             pass
-        elif type(command).__name__ == "Finished":
-            self.broadcast(Signal("Continue", self.get_name(), self._robot.get_name(),
-                                  command.Name))
         elif type(command).__name__ == "Motion":
             self.broadcast(Signal("Motion", self.get_name(), self._robot.get_name(), command))
         elif type(command).__name__ == "Localize":

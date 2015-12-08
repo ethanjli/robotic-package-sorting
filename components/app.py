@@ -9,7 +9,7 @@ from components.messaging import Receiver, Broadcaster
 from components.robots import HamsterComm, Robot
 from components.world import VirtualWorld
 
-MIN_RSSI = -50
+MIN_RSSI = -60
 
 class AutoScrollbar(ttk.Scrollbar):
     """A scrollbar that automatically hides if unneeded."""
