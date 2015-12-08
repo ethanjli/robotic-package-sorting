@@ -258,7 +258,8 @@ class SimplePrimitivePlanner(Reactor, Broadcaster):
             self._active = False
     def _broadcast_next_command(self):
         command = self.__command_generator.send(True)
-        self.broadcast(Signal("Motion", self.get_name(), self._robot.get_name(), command))
+        if command is not None:
+            self.broadcast(Signal("Motion", self.get_name(), self._robot.get_name(), command))
 
     # Abstract methods
     def _generate_commands(self):
@@ -270,6 +271,8 @@ class SimplePrimitivePlanner(Reactor, Broadcaster):
 
         Yielding:
             The next motion command for the PrimitiveController.
+            None is a no-op, and indicates the the generator is done; to restart it,
+            reset the generator.
         """
-        yield Motion(None, None, None, None, None)
+        yield None
 

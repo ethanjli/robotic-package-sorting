@@ -7,6 +7,7 @@ import numpy as np
 
 from components.messaging import Signal
 from components.geometry import Pose, to_vector
+from components.util import clip
 from components.robots import VirtualRobot, centroid_to_instant_center
 from components.sensors import FilteringMonitor, VirtualMonitor
 from components.world import Border, Wall, Package
@@ -25,14 +26,15 @@ class SquarePlanner(SimplePrimitivePlanner):
             Motion("RotateTowards", "DeadReckoning", 1, 20, (-0.5, 4)),
             Motion("MoveTo", "DeadReckoning", 1, 20, (-0.5, None)),
             Motion("RotateTowards", "DeadReckoning", 1, 20, (-0.5, 0)),
-            Motion("MoveTo", "DeadReckoning", 1, 20, (None, 0))
+            Motion("MoveTo", "DeadReckoning", 1, 20, (None, 0)),
+            None
         ]
         while True:
             index = 0
             resetting = False
             while not resetting:
                 resetting = not (yield motions[index])
-                index = (index + 1) % len(motions)
+                index = clip(0, len(motions) - 1, index + 1)
 
 class GUILocalize(Simulator):
     """Localizes the robot."""
