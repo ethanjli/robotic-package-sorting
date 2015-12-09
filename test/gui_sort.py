@@ -21,6 +21,7 @@ class DistributePlanner(SimplePrimitivePlanner):
     def _generate_commands(self):
         commands = [
             Pause("Pause", 1),
+            Servo(90),
             # Move to position to push box up
             Color(6, 6),
             Wait("Wait"),
@@ -269,7 +270,7 @@ class GUISort(Simulator):
         self._world.add_wall(Wall(4, center_x=8, center_y=12, x_length=4, y_length=4))
         self._world.add_wall(Wall(5, center_x=12, center_y=11, x_length=4, y_length=10))
         self._world.add_wall(Wall(6, center_x=-8, center_y=12, x_length=4, y_length=4))
-        self._world.add_wall(Wall(7, center_y=20, x_length=10, y_length=4))
+        self._world.add_package(Package(7, center_x=18))
     def _start_simulator(self):
         self.__stop_button.config(state="disabled")
         self.broadcast(Signal("Start", self.get_name(), self._robots[0].get_name(), None))
