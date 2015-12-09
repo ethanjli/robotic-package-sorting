@@ -15,6 +15,9 @@ Localize = namedtuple("Localize", ["Name", "Rectangle", "Side", "Data"])
 Pause = namedtuple("Pause", ["Name", "Data"])
 Wait = namedtuple("Wait", ["Name"])
 Finished = namedtuple("Finished", ["Name", "Target"])
+Color = namedtuple("Color", ["LeftColor", "RightColor"])
+Beep = namedtuple("Beep", ["Note", "Duration"])
+Servo = namedtuple("Servo", ["Angle"])
 
 class PrimitiveController(Reactor, Broadcaster):
     """Takes primitive motion control commands and executes them.
@@ -274,11 +277,13 @@ class SimplePrimitivePlanner(Reactor, Broadcaster):
         Motion: broadcasts a motion command.
         Localize: broadcasts a localization command.
         Stop: broadcasts a signal to stop the controller when resetting the planner.
+        Beep: send a signal to beep the buzzer.
+        Servo: set the servo angle
 
     Generator Commands:
-        Motion, Localize, Pause, Wait
+        Motion, Localize, Pause, Wait, Finished, Color, Beep, Servo
     """
-    def __init__(self, name, robot):
+    def __init__(self, name, robot, monitor=None):
         super(SimplePrimitivePlanner, self).__init__(name)
         robot.get_virtual().register("SetPose", self)
         self._robot = robot
@@ -315,6 +320,17 @@ class SimplePrimitivePlanner(Reactor, Broadcaster):
             elif type(command).__name__ == "Finished":
                 self.broadcast(Signal("Continue", self.get_name(), self._robot.get_name(),
                                       command.Target))
+                command = None
+            elif type(command).__name__ == "Color":
+                self._robot.led(command.LeftColor, command.RightColor)
+                command = None
+            elif type(command).__name__ == "Beep":
+                self.broadcast(Signal("Beep", self.get_name(), self._robot.get_name(),
+                                      (command.Note, command.Duration)))
+                command = None
+            elif type(command).__name__ == "Servo":
+                self.broadcast(Signal("Servo", self.get_name(), self._robot.get_name(),
+                                      command.Angle))
                 command = None
         if type(command).__name__ == "Wait":
             pass

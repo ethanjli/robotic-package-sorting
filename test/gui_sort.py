@@ -9,10 +9,10 @@ import numpy as np
 from components.messaging import Signal
 from components.geometry import Pose, to_vector
 from components.util import clip
-from components.robots import VirtualRobot, centroid_to_instant_center
+from components.robots import VirtualRobot, Beeper, centroid_to_instant_center
 from components.sensors import FilteringMonitor, VirtualMonitor
-from components.world import Border, Wall, Package
-from components.control import Motion, Localize, Pause, Wait, Finished
+from components.world import Wall, Package
+from components.control import Motion, Pause, Wait, Finished, Color, Beep, Servo
 from components.control import PrimitiveController, SimplePrimitivePlanner
 from components.app import Simulator
 
@@ -22,26 +22,34 @@ class DistributePlanner(SimplePrimitivePlanner):
         commands = [
             Pause("Pause", 1),
             # Move to position to push box up
+            Color(6, 6),
             Wait("Wait"),
+            Color(2, 2),
             Motion("RotateTowards", "DeadReckoning", 1, 20, (0, -6)),
             Motion("MoveTo", "DeadReckoning", 1, 20, (0, None)),
             Motion("RotateTowards", "DeadReckoning", 1, 20, (0, 10)),
             # Push box up
             Motion("MoveTo", "DeadReckoning", 1, 20, (None, 0)),
             Finished("Finished", "Robot 1"),
+            Beep(40, 0.2),
+            Beep(0, 0.2),
             Motion("MoveTo", "DeadReckoning", 1, 20, (None, 8.5)),
             # Move to home
             Motion("MoveTo", "DeadReckoning", -1, 20, (None, 6)),
             Motion("RotateTowards", "DeadReckoning", -1, 20, (-6.5, 6)),
             Motion("MoveTo", "DeadReckoning", -1, 20, (-6.5, None)),
             # Move to position to push box down
+            Color(6, 6),
             Wait("Wait"),
+            Color(2, 2),
             Motion("RotateTowards", "DeadReckoning", 1, 20, (0, 6)),
             Motion("MoveTo", "DeadReckoning", 1, 20, (0, None)),
             Motion("RotateTowards", "DeadReckoning", 1, 20, (0, -10)),
             # Push box down
             Motion("MoveTo", "DeadReckoning", 1, 20, (None, 0)),
             Finished("Finished", "Robot 1"),
+            Beep(40, 0.2),
+            Beep(0, 0.2),
             Motion("MoveTo", "DeadReckoning", 1, 20, (None, -8.5)),
             # Move to home
             Motion("MoveTo", "DeadReckoning", -1, 20, (None, -6)),
@@ -49,13 +57,18 @@ class DistributePlanner(SimplePrimitivePlanner):
             Motion("MoveTo", "DeadReckoning", -1, 20, (-6.5, None)),
             # Victory dance
             Finished("Finished", "Robot 1"),
+            Beep(40, 0.2),
+            Beep(0, 0.2),
+            Color(6, 6),
             Wait("Wait"),
+            Color(7, 7),
             Motion("RotateBy", "DeadReckoning", 1, 40, 0.4 * np.pi),
             Motion("RotateBy", "DeadReckoning", 1, 40, -0.25 * np.pi),
             Motion("RotateBy", "DeadReckoning", 1, 40, 0.25 * np.pi),
             Motion("RotateBy", "DeadReckoning", 1, 40, -0.25 * np.pi),
             Motion("RotateBy", "DeadReckoning", 1, 40, 0.25 * np.pi),
             Motion("RotateBy", "DeadReckoning", 1, 40, -0.25 * np.pi),
+            Servo(45),
             None
         ]
         while True:
@@ -72,25 +85,42 @@ class DeliverPlanner(SimplePrimitivePlanner):
             # Push box 1
             Motion("MoveTo", "DeadReckoning", 1, 20, (5, None)),
             Finished("Finished", "Robot 0"),
+            Beep(40, 0.2),
+            Beep(0, 0.2),
             Motion("MoveTo", "DeadReckoning", -1, 20, (24.5, None)),
             Finished("Finished", "GUISort"),
             # Push box 2
+            Color(6, 6),
             Wait("Wait"),
             Wait("Wait"),
+            Color(2, 2),
             Motion("MoveTo", "DeadReckoning", 1, 20, (5, None)),
             Finished("Finished", "Robot 0"),
+            Beep(40, 0.2),
+            Beep(0, 0.2),
             Motion("MoveTo", "DeadReckoning", -1, 20, (24.5, None)),
             # Victory dance
+            Color(6, 6),
             Wait("Wait"),
             Wait("Wait"),
+            Color(7, 7),
             Finished("Finished", "Robot 0"),
+            Beep(40, 0.2),
+            Beep(0, 0.2),
+            Servo(45),
             Motion("RotateBy", "DeadReckoning", 1, 40, 0.4 * np.pi),
+            Servo(135),
             Motion("RotateBy", "DeadReckoning", 1, 40, -0.25 * np.pi),
+            Servo(45),
             Motion("RotateBy", "DeadReckoning", 1, 40, 0.25 * np.pi),
+            Servo(135),
             Motion("RotateBy", "DeadReckoning", 1, 40, -0.25 * np.pi),
+            Servo(45),
             Motion("RotateBy", "DeadReckoning", 1, 40, 0.25 * np.pi),
+            Servo(135),
             Motion("RotateBy", "DeadReckoning", 1, 40, -0.25 * np.pi),
-            Finished("Finished", "GUISort"), # TODO: make this a different "Finished" command
+            Servo(45),
+            #Finished("Finished", "GUISort"), # TODO: make this a different "Finished" command
             None
         ]
         while True:
@@ -166,6 +196,11 @@ class GUISort(Simulator):
         monitor_1.register("PSD", self._world)
         self._add_thread(monitor_1)
 
+        beeper_0 = Beeper("Beeper 0", self._robots[0])
+        self._add_thread(beeper_0)
+        beeper_1 = Beeper("Beeper 1", self._robots[1])
+        self._add_thread(beeper_1)
+
         controller_0 = PrimitiveController("MotionController 0", self._robots[0], monitor_0)
         controller_0.register("Moved", self)
         self.register("Motion", controller_0)
@@ -184,6 +219,8 @@ class GUISort(Simulator):
         controller_0.register("Moved", planner_0)
         self.register("Start", planner_0)
         self.register("Reset", planner_0)
+        planner_0.register("Beep", beeper_0)
+        planner_0.register("Servo", monitor_0)
         self._add_thread(planner_0)
 
         controller_1 = PrimitiveController("MotionController 1", self._robots[1], monitor_1)
@@ -204,6 +241,8 @@ class GUISort(Simulator):
         controller_1.register("Moved", planner_1)
         self.register("Start", planner_1)
         self.register("Reset", planner_1)
+        planner_1.register("Beep", beeper_1)
+        planner_1.register("Servo", monitor_1)
         self._add_thread(planner_1)
 
         planner_0.register("Continue", planner_1)

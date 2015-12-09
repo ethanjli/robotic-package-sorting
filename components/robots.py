@@ -113,6 +113,11 @@ class Robot(object):
             self._hamster.set_port(_SERVO_PORT, angle)
         if self._virtual is not None:
             self._virtual.servo(angle)
+    def led(self, left_color, right_color):
+        """Set the robot's LEDs."""
+        if self.is_real():
+            self._hamster.set_led(0, left_color)
+            self._hamster.set_led(1, right_color)
 
     # Sensors
     def get_floor(self):
@@ -174,7 +179,7 @@ class Beeper(Reactor):
     """Beeps. Useful for notifications.
 
     Signals Received:
-        Will react to any Signal whose Namespace matches the name of its robot.
+        Will react to any Signal named Beep whose Namespace matches the name of its robot.
         Data should be a 2-tuple of the note and its duration.
     """
     def __init__(self, name, robot):
@@ -182,10 +187,9 @@ class Beeper(Reactor):
         self._robot = robot
 
     def _react(self, signal):
-        if not signal.Namespace == self._robot.get_name():
-            return
-        self._robot.beep(signal.Data[0])
-        time.sleep(signal.Data[1])
+        if signal.Name == "Beep" and signal.Namespace == self._robot.get_name():
+            self._robot.beep(signal.Data[0])
+            time.sleep(signal.Data[1])
     def _run_post(self):
         self._robot.beep(0)
 class Mover(Reactor):
