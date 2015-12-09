@@ -47,6 +47,15 @@ class DistributePlanner(SimplePrimitivePlanner):
             Motion("MoveTo", "DeadReckoning", -1, 20, (None, -6)),
             Motion("RotateTowards", "DeadReckoning", -1, 20, (-6.5, -6)),
             Motion("MoveTo", "DeadReckoning", -1, 20, (-6.5, None)),
+            # Victory dance
+            Finished("Finished", "Robot 1"),
+            Wait("Wait"),
+            Motion("RotateBy", "DeadReckoning", 1, 40, 0.4 * np.pi),
+            Motion("RotateBy", "DeadReckoning", 1, 40, -0.25 * np.pi),
+            Motion("RotateBy", "DeadReckoning", 1, 40, 0.25 * np.pi),
+            Motion("RotateBy", "DeadReckoning", 1, 40, -0.25 * np.pi),
+            Motion("RotateBy", "DeadReckoning", 1, 40, 0.25 * np.pi),
+            Motion("RotateBy", "DeadReckoning", 1, 40, -0.25 * np.pi),
             None
         ]
         while True:
@@ -71,6 +80,17 @@ class DeliverPlanner(SimplePrimitivePlanner):
             Motion("MoveTo", "DeadReckoning", 1, 20, (5, None)),
             Finished("Finished", "Robot 0"),
             Motion("MoveTo", "DeadReckoning", -1, 20, (24.5, None)),
+            # Victory dance
+            Wait("Wait"),
+            Wait("Wait"),
+            Finished("Finished", "Robot 0"),
+            Motion("RotateBy", "DeadReckoning", 1, 40, 0.4 * np.pi),
+            Motion("RotateBy", "DeadReckoning", 1, 40, -0.25 * np.pi),
+            Motion("RotateBy", "DeadReckoning", 1, 40, 0.25 * np.pi),
+            Motion("RotateBy", "DeadReckoning", 1, 40, -0.25 * np.pi),
+            Motion("RotateBy", "DeadReckoning", 1, 40, 0.25 * np.pi),
+            Motion("RotateBy", "DeadReckoning", 1, 40, -0.25 * np.pi),
+            Finished("Finished", "GUISort"), # TODO: make this a different "Finished" command
             None
         ]
         while True:
@@ -89,14 +109,7 @@ class GUISort(Simulator):
 
     # Implementing parent abstract methods
     def _react_simulator(self, signal):
-        if signal.Name == "Continue":
-            print(self.get_name(), signal.Data)
-        if signal.Name == "Moved":
-            self.__set_motion_buttons_state("normal")
-            self.__pauseresume_button.config(state="disabled", text="Pause")
-        elif signal.Name == "Motion":
-            self.__set_motion_buttons_state("disabled")
-        elif signal.Name == "Continue" and signal.Data == self.get_name():
+        if signal.Name == "Continue" and signal.Data == self.get_name():
             self._ask_another_box()
     def _initialize_widgets(self):
         toolbar_frame = ttk.Frame(self._root, name="toolbarFrame")
@@ -121,31 +134,12 @@ class GUISort(Simulator):
         self.__stop_button = ttk.Button(stop_frame, name="stop", text="Stop",
                                         command=self._stop, state="disabled")
         self.__stop_button.pack(side="top", fill="x")
-        self.__pauseresume_button = ttk.Button(stop_frame, name="pauseresume", text="Pause",
-                                               command=self._pauseresume, state="disabled")
-        self.__pauseresume_button.pack(side="top", fill="x")
-        # Rotate buttons
-        rotate_frame = ttk.Frame(commands_frame, name="rotateFrame")
-        rotate_frame.pack(side="left", fill="y")
-        self.__rotate90_button = ttk.Button(rotate_frame, name="rotate90",
-                                            text="Rotate 90 deg", command=self._rotate90,
-                                            state="disabled")
-        self.__rotate90_button.pack(side="top", fill="x")
-        self.__rotate_90_button = ttk.Button(rotate_frame, name="rotate-90",
-                                             text="Rotate -90 deg", command=self._rotate_90,
-                                             state="disabled")
-        self.__rotate_90_button.pack(side="top", fill="x")
-        # Move buttons
-        move_frame = ttk.Frame(commands_frame, name="moveFrame")
-        move_frame.pack(side="left", fill="y")
-        self.__move65_button = ttk.Button(move_frame, name="move65",
-                                          text="Move 6.5", command=self._move65,
-                                          state="disabled")
-        self.__move65_button.pack(side="top", fill="x")
-        self.__move_65_button = ttk.Button(move_frame, name="move-65",
-                                           text="Move -6.5", command=self._move_65,
-                                           state="disabled")
-        self.__move_65_button.pack(side="top", fill="x")
+        # Boxes
+        box_frame = ttk.Frame(commands_frame, name="boxFrame")
+        box_frame.pack(side="left", fill="y")
+        self.__addbox_button = ttk.Button(box_frame, name="add", text="Add Next Box",
+                                           command=self._add_box, state="disabled")
+        self.__addbox_button.pack(side="top", fill="x")
 
         simulator_frame = ttk.LabelFrame(self._root, name="simulatorFrame",
                                          borderwidth=2, relief="ridge",
@@ -219,7 +213,6 @@ class GUISort(Simulator):
     def _connect_post(self):
         self._change_reset_button("Reset")
         self._enable_start_button()
-        self.__set_motion_buttons_state("normal")
 
         # Calibration
         self._robots[0].move_multiplier = 0.105
@@ -227,11 +220,6 @@ class GUISort(Simulator):
         self._robots[0].set_wheel_balance(11)
         self._robots[1].move_multiplier = 0.105
         self._robots[1].rotate_multiplier = 0.06
-    def __set_motion_buttons_state(self, new_state):
-        self.__rotate90_button.config(state=new_state)
-        self.__rotate_90_button.config(state=new_state)
-        self.__move65_button.config(state=new_state)
-        self.__move_65_button.config(state=new_state)
     def _generate_virtual_robots(self):
         yield VirtualRobot("Robot 0",
                            pose=centroid_to_instant_center(Pose(to_vector(-6, -6), 0)),
@@ -250,66 +238,36 @@ class GUISort(Simulator):
         self._world.add_wall(Wall(7, center_y=20, x_length=10, y_length=4))
     def _start_simulator(self):
         self.__stop_button.config(state="disabled")
-        self.__set_motion_buttons_state("disabled")
         self.broadcast(Signal("Start", self.get_name(), self._robots[0].get_name(), None))
         self.broadcast(Signal("Start", self.get_name(), self._robots[1].get_name(), None))
     def _pause_simulator(self):
         self.broadcast(Signal("Pause", self.get_name(), self._robots[0].get_name(), None))
         self.broadcast(Signal("Pause", self.get_name(), self._robots[1].get_name(), None))
-        self.__set_motion_buttons_state("normal")
     def _resume_simulator(self):
         self.broadcast(Signal("Resume", self.get_name(), self._robots[0].get_name(), None))
         self.broadcast(Signal("Resume", self.get_name(), self._robots[1].get_name(), None))
-        self.__set_motion_buttons_state("disabled")
     def _reset_simulator_post(self):
         self.broadcast(Signal("Reset", self.get_name(), self._robots[0].get_name(), None))
         self.broadcast(Signal("Reset", self.get_name(), self._robots[1].get_name(), None))
-        self.__set_motion_buttons_state("normal")
+        self.__addbox_button.config(state="disabled")
 
     def __broadcast_motion_command(self, command):
         self.broadcast(Signal("Motion", self.get_name(), self._robots[0].get_name(), command))
         self.broadcast(Signal("Motion", self.get_name(), self._robots[1].get_name(), command))
-        self.__set_motion_buttons_state("disabled")
-        self.__pauseresume_button.config(state="normal", text="Pause")
         self.__stop_button.config(state="normal")
 
     # Stop button callbacks
     def _stop(self):
         self.broadcast(Signal("Stop", self.get_name(), self._robots[0].get_name(), None))
         self.broadcast(Signal("Stop", self.get_name(), self._robots[1].get_name(), None))
-        self.__set_motion_buttons_state("normal")
         self.__stop_button.config(state="disabled")
-    def _pauseresume(self):
-        state = self.__pauseresume_button.cget("text")
-        if state == "Pause":
-            self.broadcast(Signal("Pause", self.get_name(), self._robots[0].get_name(), None))
-            self.broadcast(Signal("Pause", self.get_name(), self._robots[1].get_name(), None))
-            self.__pauseresume_button.config(text="Resume")
-        elif state == "Resume":
-            self.broadcast(Signal("Resume", self.get_name(), self._robots[0].get_name(), None))
-            self.broadcast(Signal("Resume", self.get_name(), self._robots[1].get_name(), None))
-            self.__pauseresume_button.config(text="Pause")
 
-    # Rotate button callbacks
-    def _rotate90(self):
-        command = Motion("RotateBy", "DeadReckoning", None, 20, 0.5 * np.pi)
-        self.__broadcast_motion_command(command)
-    def _rotate_90(self):
-        command = Motion("RotateBy", "DeadReckoning", None, 20, -0.5 * np.pi)
-        self.__broadcast_motion_command(command)
-
-    # Move button callbacks
-    def _move65(self):
-        command = Motion("MoveBy", "DeadReckoning", 1, 20, 6.5)
-        self.__broadcast_motion_command(command)
-    def _move_65(self):
-        command = Motion("MoveBy", "DeadReckoning", -1, 20, 6.5)
-        self.__broadcast_motion_command(command)
-
-    # Dialogue boxes
+    # Adding boxes
     def _ask_another_box(self):
-        if tkMessageBox.askokcancel("Package Sorter", "Please add the next box."):
-            self.broadcast(Signal("Continue", self.get_name(), self._robots[1].get_name(), "Robot 1"))
+        self.__addbox_button.config(state="normal")
+    def _add_box(self):
+        self.broadcast(Signal("Continue", self.get_name(), self._robots[1].get_name(), "Robot 1"))
+        self.__addbox_button.config(state="disabled")
 
 def main():
     """Runs test."""

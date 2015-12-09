@@ -310,7 +310,6 @@ class SimplePrimitivePlanner(Reactor, Broadcaster):
             if command is None:
                 return
             if type(command).__name__ == "Pause":
-                print(command)
                 sleep(command.Data)
                 command = None
             elif type(command).__name__ == "Finished":
