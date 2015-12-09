@@ -82,6 +82,7 @@ class DeliverPlanner(SimplePrimitivePlanner):
     def _generate_commands(self):
         commands = [
             Pause("Pause", 1),
+            Servo(90),
             # Push box 1
             Motion("MoveTo", "DeadReckoning", 1, 20, (5, None)),
             Finished("Finished", "Robot 0"),
@@ -107,17 +108,11 @@ class DeliverPlanner(SimplePrimitivePlanner):
             Finished("Finished", "Robot 0"),
             Beep(40, 0.2),
             Beep(0, 0.2),
-            Servo(45),
             Motion("RotateBy", "DeadReckoning", 1, 40, 0.4 * np.pi),
-            Servo(135),
             Motion("RotateBy", "DeadReckoning", 1, 40, -0.25 * np.pi),
-            Servo(45),
             Motion("RotateBy", "DeadReckoning", 1, 40, 0.25 * np.pi),
-            Servo(135),
             Motion("RotateBy", "DeadReckoning", 1, 40, -0.25 * np.pi),
-            Servo(45),
             Motion("RotateBy", "DeadReckoning", 1, 40, 0.25 * np.pi),
-            Servo(135),
             Motion("RotateBy", "DeadReckoning", 1, 40, -0.25 * np.pi),
             Servo(45),
             #Finished("Finished", "GUISort"), # TODO: make this a different "Finished" command
